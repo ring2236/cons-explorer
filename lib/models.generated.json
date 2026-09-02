@@ -1,0 +1,3748 @@
+{
+  "model_version": "bias-v2-b37553739602",
+  "source_file": "因果图候选库_v2_偏差考点版.md",
+  "source_sha256": "b375537396025a61a7e364c2133073d7f98b5d4ae5cb97d7d620395985eaeed2",
+  "generated_at": "2026-09-01T15:46:49.561Z",
+  "totals": {
+    "datasets": 5,
+    "nodes": 44,
+    "edges": 65
+  },
+  "datasets": [
+    {
+      "schema_version": "bias-v2",
+      "dataset_id": "icu_septic_shock",
+      "title_zh": "ICU脓毒症休克",
+      "title_en": "Vasopressor dose and acute kidney injury",
+      "domain": "重症医学 · 升压药剂量与急性肾损伤",
+      "expertise": "血管活性药物滴定、肾脏灌注阈值与ICU选择机制",
+      "boundary_zh": "冻结教学SCM，仅用于结构理解与偏差识别，不用于医疗决策。",
+      "topological_order": [
+        "A",
+        "S",
+        "Kb",
+        "N",
+        "M",
+        "L",
+        "U",
+        "H",
+        "R"
+      ],
+      "nodes": [
+        {
+          "id": "A",
+          "label_zh": "年龄",
+          "label_en": "Age",
+          "unit": "岁",
+          "role": "根节点",
+          "reference_value": 78,
+          "min_value": 18,
+          "max_value": 100,
+          "decimals": 2,
+          "intervenable": false,
+          "suggested_intervention": null,
+          "latent": false,
+          "mechanism": {
+            "type": "input",
+            "formula_text": "冻结基线输入"
+          },
+          "discrete_options": [],
+          "parents": [],
+          "children": [
+            "Kb"
+          ]
+        },
+        {
+          "id": "Kb",
+          "label_zh": "慢性肾病负担",
+          "label_en": "Chronic kidney burden",
+          "unit": "指数",
+          "role": "中介/独立病因",
+          "reference_value": 10.16,
+          "min_value": 0,
+          "max_value": 30,
+          "decimals": 2,
+          "intervenable": false,
+          "suggested_intervention": null,
+          "latent": false,
+          "mechanism": {
+            "type": "expression",
+            "expression": {
+              "op": "sub",
+              "a": {
+                "op": "mul",
+                "args": [
+                  {
+                    "op": "const",
+                    "value": 0.72
+                  },
+                  {
+                    "op": "var",
+                    "id": "A"
+                  }
+                ]
+              },
+              "b": {
+                "op": "const",
+                "value": 46
+              }
+            },
+            "formula_text": "Kb = 0.72·A − 46"
+          },
+          "discrete_options": [],
+          "parents": [
+            "A"
+          ],
+          "children": [
+            "R",
+            "H"
+          ]
+        },
+        {
+          "id": "S",
+          "label_zh": "SOFA评分",
+          "label_en": "SOFA score",
+          "unit": "分",
+          "role": "根节点",
+          "reference_value": 7.2,
+          "min_value": 0,
+          "max_value": 24,
+          "decimals": 1,
+          "intervenable": false,
+          "suggested_intervention": null,
+          "latent": false,
+          "mechanism": {
+            "type": "input",
+            "formula_text": "感染严重度冻结输入"
+          },
+          "discrete_options": [],
+          "parents": [],
+          "children": [
+            "N",
+            "M",
+            "L",
+            "R",
+            "H"
+          ]
+        },
+        {
+          "id": "N",
+          "label_zh": "去甲肾上腺素剂量",
+          "label_en": "Norepinephrine dose",
+          "unit": "μg/kg/min",
+          "role": "干预节点",
+          "reference_value": 0.33,
+          "min_value": 0,
+          "max_value": 1,
+          "decimals": 2,
+          "intervenable": true,
+          "suggested_intervention": 0.6,
+          "latent": false,
+          "mechanism": {
+            "type": "expression",
+            "expression": {
+              "op": "mul",
+              "args": [
+                {
+                  "op": "const",
+                  "value": 0.014
+                },
+                {
+                  "op": "pow",
+                  "a": {
+                    "op": "var",
+                    "id": "S"
+                  },
+                  "b": {
+                    "op": "const",
+                    "value": 1.6
+                  }
+                }
+              ]
+            },
+            "formula_text": "N = 0.014·S^1.6"
+          },
+          "discrete_options": [
+            {
+              "kind": "low",
+              "label": "低剂量",
+              "value": 0.15
+            },
+            {
+              "kind": "baseline",
+              "label": "基线",
+              "value": 0.33
+            },
+            {
+              "kind": "recommended",
+              "label": "高剂量情景",
+              "value": 0.6
+            }
+          ],
+          "parents": [
+            "S"
+          ],
+          "children": [
+            "M",
+            "R"
+          ]
+        },
+        {
+          "id": "M",
+          "label_zh": "平均动脉压MAP",
+          "label_en": "Mean arterial pressure",
+          "unit": "mmHg",
+          "role": "中介",
+          "reference_value": 89.18,
+          "min_value": 40,
+          "max_value": 130,
+          "decimals": 2,
+          "intervenable": false,
+          "suggested_intervention": null,
+          "latent": false,
+          "mechanism": {
+            "type": "expression",
+            "expression": {
+              "op": "add",
+              "args": [
+                {
+                  "op": "const",
+                  "value": 52
+                },
+                {
+                  "op": "mul",
+                  "args": [
+                    {
+                      "op": "const",
+                      "value": -0.9
+                    },
+                    {
+                      "op": "var",
+                      "id": "S"
+                    }
+                  ]
+                },
+                {
+                  "op": "mul",
+                  "args": [
+                    {
+                      "op": "const",
+                      "value": 52
+                    },
+                    {
+                      "op": "sub",
+                      "a": {
+                        "op": "const",
+                        "value": 1
+                      },
+                      "b": {
+                        "op": "exp",
+                        "x": {
+                          "op": "mul",
+                          "args": [
+                            {
+                              "op": "const",
+                              "value": -1
+                            },
+                            {
+                              "op": "div",
+                              "a": {
+                                "op": "var",
+                                "id": "N"
+                              },
+                              "b": {
+                                "op": "const",
+                                "value": 0.18
+                              }
+                            }
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              ]
+            },
+            "formula_text": "M = 52 − 0.9·S + 52·(1 − e^(−N/0.18))"
+          },
+          "discrete_options": [],
+          "parents": [
+            "S",
+            "N"
+          ],
+          "children": [
+            "U"
+          ]
+        },
+        {
+          "id": "L",
+          "label_zh": "血乳酸",
+          "label_en": "Lactate",
+          "unit": "mmol/L",
+          "role": "非后代",
+          "reference_value": 3.08,
+          "min_value": 0,
+          "max_value": 15,
+          "decimals": 2,
+          "intervenable": false,
+          "suggested_intervention": null,
+          "latent": false,
+          "mechanism": {
+            "type": "expression",
+            "expression": {
+              "op": "add",
+              "args": [
+                {
+                  "op": "const",
+                  "value": 0.85
+                },
+                {
+                  "op": "mul",
+                  "args": [
+                    {
+                      "op": "const",
+                      "value": 0.155
+                    },
+                    {
+                      "op": "pow",
+                      "a": {
+                        "op": "var",
+                        "id": "S"
+                      },
+                      "b": {
+                        "op": "const",
+                        "value": 1.35
+                      }
+                    }
+                  ]
+                }
+              ]
+            },
+            "formula_text": "L = 0.85 + 0.155·S^1.35"
+          },
+          "discrete_options": [],
+          "parents": [
+            "S"
+          ],
+          "children": [
+            "R"
+          ]
+        },
+        {
+          "id": "U",
+          "label_zh": "尿量",
+          "label_en": "Urine output",
+          "unit": "ml/kg/h",
+          "role": "中介",
+          "reference_value": 0.99,
+          "min_value": 0,
+          "max_value": 2,
+          "decimals": 2,
+          "intervenable": false,
+          "suggested_intervention": null,
+          "latent": false,
+          "mechanism": {
+            "type": "expression",
+            "expression": {
+              "op": "mul",
+              "args": [
+                {
+                  "op": "const",
+                  "value": 1.65
+                },
+                {
+                  "op": "sigmoid",
+                  "x": {
+                    "op": "div",
+                    "a": {
+                      "op": "sub",
+                      "a": {
+                        "op": "var",
+                        "id": "M"
+                      },
+                      "b": {
+                        "op": "const",
+                        "value": 88
+                      }
+                    },
+                    "b": {
+                      "op": "const",
+                      "value": 3
+                    }
+                  }
+                }
+              ]
+            },
+            "formula_text": "U = 1.65·σ((M−88)/3)"
+          },
+          "discrete_options": [],
+          "parents": [
+            "M"
+          ],
+          "children": [
+            "R"
+          ]
+        },
+        {
+          "id": "R",
+          "label_zh": "48h急性肾损伤风险",
+          "label_en": "48h AKI risk",
+          "unit": "%",
+          "role": "结局",
+          "reference_value": 55.75,
+          "min_value": 0,
+          "max_value": 100,
+          "decimals": 2,
+          "intervenable": false,
+          "suggested_intervention": null,
+          "latent": false,
+          "mechanism": {
+            "type": "expression",
+            "expression": {
+              "op": "mul",
+              "args": [
+                {
+                  "op": "const",
+                  "value": 100
+                },
+                {
+                  "op": "sigmoid",
+                  "x": {
+                    "op": "add",
+                    "args": [
+                      {
+                        "op": "const",
+                        "value": -3
+                      },
+                      {
+                        "op": "mul",
+                        "args": [
+                          {
+                            "op": "const",
+                            "value": 0.55
+                          },
+                          {
+                            "op": "var",
+                            "id": "S"
+                          }
+                        ]
+                      },
+                      {
+                        "op": "mul",
+                        "args": [
+                          {
+                            "op": "const",
+                            "value": 0.62
+                          },
+                          {
+                            "op": "div",
+                            "a": {
+                              "op": "var",
+                              "id": "Kb"
+                            },
+                            "b": {
+                              "op": "const",
+                              "value": 18
+                            }
+                          }
+                        ]
+                      },
+                      {
+                        "op": "mul",
+                        "args": [
+                          {
+                            "op": "const",
+                            "value": 0.3
+                          },
+                          {
+                            "op": "var",
+                            "id": "L"
+                          }
+                        ]
+                      },
+                      {
+                        "op": "mul",
+                        "args": [
+                          {
+                            "op": "const",
+                            "value": 2.3
+                          },
+                          {
+                            "op": "max",
+                            "args": [
+                              {
+                                "op": "const",
+                                "value": 0
+                              },
+                              {
+                                "op": "sub",
+                                "a": {
+                                  "op": "var",
+                                  "id": "N"
+                                },
+                                "b": {
+                                  "op": "const",
+                                  "value": 0.3
+                                }
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "op": "mul",
+                        "args": [
+                          {
+                            "op": "const",
+                            "value": -2.1
+                          },
+                          {
+                            "op": "var",
+                            "id": "U"
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                }
+              ]
+            },
+            "formula_text": "R = 100·σ(… + 2.3·max(0,N−0.30) − 2.1·U)"
+          },
+          "discrete_options": [],
+          "parents": [
+            "S",
+            "Kb",
+            "L",
+            "N",
+            "U"
+          ],
+          "children": []
+        },
+        {
+          "id": "H",
+          "label_zh": "收入ICU概率",
+          "label_en": "ICU admission probability",
+          "unit": "%",
+          "role": "选择节点/碰撞点",
+          "reference_value": 41.42,
+          "min_value": 0,
+          "max_value": 100,
+          "decimals": 2,
+          "intervenable": false,
+          "suggested_intervention": null,
+          "latent": false,
+          "mechanism": {
+            "type": "expression",
+            "expression": {
+              "op": "mul",
+              "args": [
+                {
+                  "op": "const",
+                  "value": 100
+                },
+                {
+                  "op": "sigmoid",
+                  "x": {
+                    "op": "add",
+                    "args": [
+                      {
+                        "op": "mul",
+                        "args": [
+                          {
+                            "op": "const",
+                            "value": 0.55
+                          },
+                          {
+                            "op": "sub",
+                            "a": {
+                              "op": "var",
+                              "id": "S"
+                            },
+                            "b": {
+                              "op": "const",
+                              "value": 7.2
+                            }
+                          }
+                        ]
+                      },
+                      {
+                        "op": "div",
+                        "a": {
+                          "op": "sub",
+                          "a": {
+                            "op": "var",
+                            "id": "Kb"
+                          },
+                          "b": {
+                            "op": "const",
+                            "value": 10
+                          }
+                        },
+                        "b": {
+                          "op": "const",
+                          "value": 3
+                        }
+                      },
+                      {
+                        "op": "const",
+                        "value": -0.4
+                      }
+                    ]
+                  }
+                }
+              ]
+            },
+            "formula_text": "H = 100·σ(0.55·(S−7.2)+(Kb−10)/3−0.4)"
+          },
+          "discrete_options": [],
+          "parents": [
+            "S",
+            "Kb"
+          ],
+          "children": []
+        }
+      ],
+      "edges": [
+        {
+          "source": "A",
+          "target": "Kb",
+          "sign": "positive",
+          "relation": "positive"
+        },
+        {
+          "source": "S",
+          "target": "N",
+          "sign": "positive",
+          "relation": "positive"
+        },
+        {
+          "source": "S",
+          "target": "M",
+          "sign": "negative",
+          "relation": "negative"
+        },
+        {
+          "source": "N",
+          "target": "M",
+          "sign": "positive",
+          "relation": "positive"
+        },
+        {
+          "source": "S",
+          "target": "L",
+          "sign": "positive",
+          "relation": "positive"
+        },
+        {
+          "source": "M",
+          "target": "U",
+          "sign": "positive",
+          "relation": "positive"
+        },
+        {
+          "source": "S",
+          "target": "R",
+          "sign": "positive",
+          "relation": "positive"
+        },
+        {
+          "source": "Kb",
+          "target": "R",
+          "sign": "positive",
+          "relation": "positive"
+        },
+        {
+          "source": "L",
+          "target": "R",
+          "sign": "positive",
+          "relation": "positive"
+        },
+        {
+          "source": "N",
+          "target": "R",
+          "sign": "positive",
+          "relation": "positive"
+        },
+        {
+          "source": "U",
+          "target": "R",
+          "sign": "negative",
+          "relation": "negative"
+        },
+        {
+          "source": "S",
+          "target": "H",
+          "sign": "positive",
+          "relation": "positive"
+        },
+        {
+          "source": "Kb",
+          "target": "H",
+          "sign": "positive",
+          "relation": "positive"
+        }
+      ],
+      "bias_points": [
+        {
+          "name": "伯克森悖论",
+          "structure": "Kb → H ← S",
+          "note": "对ICU入选者分层会凭空制造肾病负担与感染严重度的负相关。"
+        },
+        {
+          "name": "过度控制",
+          "structure": "N → M → U → R",
+          "note": "把MAP当作控制变量会阻断剂量的肾保护通路。"
+        },
+        {
+          "name": "辛普森悖论",
+          "structure": "S → N 且 S → R",
+          "note": "观察相关方向与控制严重度后的方向相反。"
+        }
+      ],
+      "layout": {
+        "A": [
+          130,
+          70
+        ],
+        "S": [
+          520,
+          70
+        ],
+        "Kb": [
+          130,
+          220
+        ],
+        "N": [
+          420,
+          210
+        ],
+        "L": [
+          720,
+          210
+        ],
+        "H": [
+          185,
+          410
+        ],
+        "M": [
+          430,
+          340
+        ],
+        "U": [
+          430,
+          480
+        ],
+        "R": [
+          760,
+          480
+        ]
+      }
+    },
+    {
+      "schema_version": "bias-v2",
+      "dataset_id": "rice_nitrogen",
+      "title_zh": "水稻氮管理",
+      "title_en": "Nitrogen, lodging and rice yield",
+      "domain": "农学 · 施氮量、倒伏与产量",
+      "expertise": "Mitscherlich饱和、土壤—气候耦合与倒伏风险",
+      "boundary_zh": "冻结教学SCM，不用于实际农业投入决策。",
+      "topological_order": [
+        "T",
+        "P",
+        "O",
+        "I",
+        "W",
+        "N",
+        "LAI",
+        "Ld",
+        "Y"
+      ],
+      "nodes": [
+        {
+          "id": "T",
+          "label_zh": "抽穗期均温",
+          "label_en": "Heading temperature",
+          "unit": "°C",
+          "role": "根节点",
+          "reference_value": 26.5,
+          "min_value": 10,
+          "max_value": 40,
+          "decimals": 1,
+          "intervenable": false,
+          "suggested_intervention": null,
+          "latent": false,
+          "mechanism": {
+            "type": "input",
+            "formula_text": "冻结基线输入"
+          },
+          "discrete_options": [],
+          "parents": [],
+          "children": [
+            "W",
+            "Y"
+          ]
+        },
+        {
+          "id": "P",
+          "label_zh": "季降水量",
+          "label_en": "Season rainfall",
+          "unit": "mm",
+          "role": "根节点",
+          "reference_value": 480,
+          "min_value": 0,
+          "max_value": 1000,
+          "decimals": 0,
+          "intervenable": false,
+          "suggested_intervention": null,
+          "latent": false,
+          "mechanism": {
+            "type": "input",
+            "formula_text": "冻结基线输入"
+          },
+          "discrete_options": [],
+          "parents": [],
+          "children": [
+            "I",
+            "W"
+          ]
+        },
+        {
+          "id": "O",
+          "label_zh": "土壤有机质",
+          "label_en": "Soil organic matter",
+          "unit": "g/kg",
+          "role": "根节点/混杂因子",
+          "reference_value": 22,
+          "min_value": 0,
+          "max_value": 60,
+          "decimals": 2,
+          "intervenable": false,
+          "suggested_intervention": null,
+          "latent": false,
+          "mechanism": {
+            "type": "input",
+            "formula_text": "冻结基线输入"
+          },
+          "discrete_options": [],
+          "parents": [],
+          "children": [
+            "N",
+            "Y"
+          ]
+        },
+        {
+          "id": "I",
+          "label_zh": "灌溉量",
+          "label_en": "Irrigation",
+          "unit": "mm",
+          "role": "中介",
+          "reference_value": 80,
+          "min_value": 0,
+          "max_value": 400,
+          "decimals": 2,
+          "intervenable": false,
+          "suggested_intervention": null,
+          "latent": false,
+          "mechanism": {
+            "type": "expression",
+            "expression": {
+              "op": "max",
+              "args": [
+                {
+                  "op": "const",
+                  "value": 0
+                },
+                {
+                  "op": "sub",
+                  "a": {
+                    "op": "const",
+                    "value": 320
+                  },
+                  "b": {
+                    "op": "mul",
+                    "args": [
+                      {
+                        "op": "const",
+                        "value": 0.5
+                      },
+                      {
+                        "op": "var",
+                        "id": "P"
+                      }
+                    ]
+                  }
+                }
+              ]
+            },
+            "formula_text": "I = max(0,320−0.5P)"
+          },
+          "discrete_options": [],
+          "parents": [
+            "P"
+          ],
+          "children": [
+            "W"
+          ]
+        },
+        {
+          "id": "W",
+          "label_zh": "耕层含水率",
+          "label_en": "Topsoil water",
+          "unit": "%",
+          "role": "中介",
+          "reference_value": 28.56,
+          "min_value": 0,
+          "max_value": 60,
+          "decimals": 2,
+          "intervenable": false,
+          "suggested_intervention": null,
+          "latent": false,
+          "mechanism": {
+            "type": "expression",
+            "expression": {
+              "op": "add",
+              "args": [
+                {
+                  "op": "const",
+                  "value": 18
+                },
+                {
+                  "op": "mul",
+                  "args": [
+                    {
+                      "op": "const",
+                      "value": 0.012
+                    },
+                    {
+                      "op": "var",
+                      "id": "P"
+                    }
+                  ]
+                },
+                {
+                  "op": "mul",
+                  "args": [
+                    {
+                      "op": "const",
+                      "value": 0.06
+                    },
+                    {
+                      "op": "var",
+                      "id": "I"
+                    }
+                  ]
+                },
+                {
+                  "op": "mul",
+                  "args": [
+                    {
+                      "op": "const",
+                      "value": -0.4
+                    },
+                    {
+                      "op": "pow",
+                      "a": {
+                        "op": "max",
+                        "args": [
+                          {
+                            "op": "const",
+                            "value": 0
+                          },
+                          {
+                            "op": "sub",
+                            "a": {
+                              "op": "var",
+                              "id": "T"
+                            },
+                            "b": {
+                              "op": "const",
+                              "value": 28
+                            }
+                          }
+                        ]
+                      },
+                      "b": {
+                        "op": "const",
+                        "value": 2
+                      }
+                    }
+                  ]
+                }
+              ]
+            },
+            "formula_text": "W = 18+0.012P+0.06I−0.40max(0,T−28)²"
+          },
+          "discrete_options": [],
+          "parents": [
+            "P",
+            "I",
+            "T"
+          ],
+          "children": [
+            "LAI",
+            "Ld",
+            "Y"
+          ]
+        },
+        {
+          "id": "N",
+          "label_zh": "施氮量",
+          "label_en": "Nitrogen application",
+          "unit": "kg/ha",
+          "role": "干预节点",
+          "reference_value": 250.01,
+          "min_value": 0,
+          "max_value": 450,
+          "decimals": 2,
+          "intervenable": true,
+          "suggested_intervention": 320,
+          "latent": false,
+          "mechanism": {
+            "type": "expression",
+            "expression": {
+              "op": "add",
+              "args": [
+                {
+                  "op": "mul",
+                  "args": [
+                    {
+                      "op": "const",
+                      "value": 300
+                    },
+                    {
+                      "op": "exp",
+                      "x": {
+                        "op": "mul",
+                        "args": [
+                          {
+                            "op": "const",
+                            "value": -1
+                          },
+                          {
+                            "op": "div",
+                            "a": {
+                              "op": "var",
+                              "id": "O"
+                            },
+                            "b": {
+                              "op": "const",
+                              "value": 35
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "op": "const",
+                  "value": 90
+                }
+              ]
+            },
+            "formula_text": "N = 300e^(−O/35)+90"
+          },
+          "discrete_options": [
+            {
+              "kind": "low",
+              "label": "减氮情景",
+              "value": 180
+            },
+            {
+              "kind": "baseline",
+              "label": "基线",
+              "value": 250.01
+            },
+            {
+              "kind": "recommended",
+              "label": "高氮情景",
+              "value": 320
+            }
+          ],
+          "parents": [
+            "O"
+          ],
+          "children": [
+            "LAI",
+            "Y"
+          ]
+        },
+        {
+          "id": "LAI",
+          "label_zh": "叶面积指数",
+          "label_en": "Leaf area index",
+          "unit": "—",
+          "role": "中介",
+          "reference_value": 4.18,
+          "min_value": 0,
+          "max_value": 8,
+          "decimals": 2,
+          "intervenable": false,
+          "suggested_intervention": null,
+          "latent": false,
+          "mechanism": {
+            "type": "expression",
+            "expression": {
+              "op": "mul",
+              "args": [
+                {
+                  "op": "const",
+                  "value": 6.2
+                },
+                {
+                  "op": "sub",
+                  "a": {
+                    "op": "const",
+                    "value": 1
+                  },
+                  "b": {
+                    "op": "exp",
+                    "x": {
+                      "op": "mul",
+                      "args": [
+                        {
+                          "op": "const",
+                          "value": -1
+                        },
+                        {
+                          "op": "div",
+                          "a": {
+                            "op": "var",
+                            "id": "N"
+                          },
+                          "b": {
+                            "op": "const",
+                            "value": 140
+                          }
+                        }
+                      ]
+                    }
+                  }
+                },
+                {
+                  "op": "sub",
+                  "a": {
+                    "op": "const",
+                    "value": 1
+                  },
+                  "b": {
+                    "op": "exp",
+                    "x": {
+                      "op": "mul",
+                      "args": [
+                        {
+                          "op": "const",
+                          "value": -1
+                        },
+                        {
+                          "op": "div",
+                          "a": {
+                            "op": "max",
+                            "args": [
+                              {
+                                "op": "const",
+                                "value": 0
+                              },
+                              {
+                                "op": "sub",
+                                "a": {
+                                  "op": "var",
+                                  "id": "W"
+                                },
+                                "b": {
+                                  "op": "const",
+                                  "value": 12
+                                }
+                              }
+                            ]
+                          },
+                          "b": {
+                            "op": "const",
+                            "value": 10
+                          }
+                        }
+                      ]
+                    }
+                  }
+                }
+              ]
+            },
+            "formula_text": "LAI = 6.2·(1−e^(−N/140))·(1−e^(−max(0,W−12)/10))"
+          },
+          "discrete_options": [],
+          "parents": [
+            "N",
+            "W"
+          ],
+          "children": [
+            "Ld",
+            "Y"
+          ]
+        },
+        {
+          "id": "Ld",
+          "label_zh": "倒伏率",
+          "label_en": "Lodging rate",
+          "unit": "%",
+          "role": "碰撞点/中介",
+          "reference_value": 44.47,
+          "min_value": 0,
+          "max_value": 100,
+          "decimals": 2,
+          "intervenable": false,
+          "suggested_intervention": null,
+          "latent": false,
+          "mechanism": {
+            "type": "expression",
+            "expression": {
+              "op": "mul",
+              "args": [
+                {
+                  "op": "const",
+                  "value": 100
+                },
+                {
+                  "op": "sigmoid",
+                  "x": {
+                    "op": "add",
+                    "args": [
+                      {
+                        "op": "mul",
+                        "args": [
+                          {
+                            "op": "const",
+                            "value": 0.9
+                          },
+                          {
+                            "op": "sub",
+                            "a": {
+                              "op": "var",
+                              "id": "LAI"
+                            },
+                            "b": {
+                              "op": "const",
+                              "value": 4.4
+                            }
+                          }
+                        ]
+                      },
+                      {
+                        "op": "mul",
+                        "args": [
+                          {
+                            "op": "const",
+                            "value": 0.5
+                          },
+                          {
+                            "op": "sub",
+                            "a": {
+                              "op": "var",
+                              "id": "W"
+                            },
+                            "b": {
+                              "op": "const",
+                              "value": 28.6
+                            }
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                }
+              ]
+            },
+            "formula_text": "Ld = 100·σ(0.9(LAI−4.4)+0.5(W−28.6))"
+          },
+          "discrete_options": [],
+          "parents": [
+            "LAI",
+            "W"
+          ],
+          "children": [
+            "Y"
+          ]
+        },
+        {
+          "id": "Y",
+          "label_zh": "产量",
+          "label_en": "Yield",
+          "unit": "t/ha",
+          "role": "结局",
+          "reference_value": 5.96,
+          "min_value": 0,
+          "max_value": 15,
+          "decimals": 2,
+          "intervenable": false,
+          "suggested_intervention": null,
+          "latent": false,
+          "mechanism": {
+            "type": "expression",
+            "expression": {
+              "op": "add",
+              "args": [
+                {
+                  "op": "const",
+                  "value": 3.1
+                },
+                {
+                  "op": "mul",
+                  "args": [
+                    {
+                      "op": "const",
+                      "value": 1.9
+                    },
+                    {
+                      "op": "sub",
+                      "a": {
+                        "op": "const",
+                        "value": 1
+                      },
+                      "b": {
+                        "op": "exp",
+                        "x": {
+                          "op": "mul",
+                          "args": [
+                            {
+                              "op": "const",
+                              "value": -1
+                            },
+                            {
+                              "op": "div",
+                              "a": {
+                                "op": "var",
+                                "id": "LAI"
+                              },
+                              "b": {
+                                "op": "const",
+                                "value": 2.2
+                              }
+                            }
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                },
+                {
+                  "op": "mul",
+                  "args": [
+                    {
+                      "op": "const",
+                      "value": 0.012
+                    },
+                    {
+                      "op": "var",
+                      "id": "N"
+                    }
+                  ]
+                },
+                {
+                  "op": "mul",
+                  "args": [
+                    {
+                      "op": "const",
+                      "value": -0.000028
+                    },
+                    {
+                      "op": "pow",
+                      "a": {
+                        "op": "var",
+                        "id": "N"
+                      },
+                      "b": {
+                        "op": "const",
+                        "value": 2
+                      }
+                    }
+                  ]
+                },
+                {
+                  "op": "mul",
+                  "args": [
+                    {
+                      "op": "const",
+                      "value": 0.055
+                    },
+                    {
+                      "op": "sub",
+                      "a": {
+                        "op": "var",
+                        "id": "O"
+                      },
+                      "b": {
+                        "op": "const",
+                        "value": 22
+                      }
+                    }
+                  ]
+                },
+                {
+                  "op": "mul",
+                  "args": [
+                    {
+                      "op": "const",
+                      "value": 0.03
+                    },
+                    {
+                      "op": "sub",
+                      "a": {
+                        "op": "var",
+                        "id": "W"
+                      },
+                      "b": {
+                        "op": "const",
+                        "value": 20
+                      }
+                    }
+                  ]
+                },
+                {
+                  "op": "mul",
+                  "args": [
+                    {
+                      "op": "const",
+                      "value": -0.12
+                    },
+                    {
+                      "op": "pow",
+                      "a": {
+                        "op": "max",
+                        "args": [
+                          {
+                            "op": "const",
+                            "value": 0
+                          },
+                          {
+                            "op": "sub",
+                            "a": {
+                              "op": "var",
+                              "id": "T"
+                            },
+                            "b": {
+                              "op": "const",
+                              "value": 30
+                            }
+                          }
+                        ]
+                      },
+                      "b": {
+                        "op": "const",
+                        "value": 2
+                      }
+                    }
+                  ]
+                },
+                {
+                  "op": "mul",
+                  "args": [
+                    {
+                      "op": "const",
+                      "value": -0.006
+                    },
+                    {
+                      "op": "var",
+                      "id": "Ld"
+                    }
+                  ]
+                }
+              ]
+            },
+            "formula_text": "非线性产量方程"
+          },
+          "discrete_options": [],
+          "parents": [
+            "LAI",
+            "N",
+            "O",
+            "W",
+            "T",
+            "Ld"
+          ],
+          "children": []
+        }
+      ],
+      "edges": [
+        {
+          "source": "P",
+          "target": "I",
+          "sign": "negative",
+          "relation": "negative"
+        },
+        {
+          "source": "P",
+          "target": "W",
+          "sign": "positive",
+          "relation": "positive"
+        },
+        {
+          "source": "I",
+          "target": "W",
+          "sign": "positive",
+          "relation": "positive"
+        },
+        {
+          "source": "T",
+          "target": "W",
+          "sign": "negative",
+          "relation": "negative"
+        },
+        {
+          "source": "O",
+          "target": "N",
+          "sign": "negative",
+          "relation": "negative"
+        },
+        {
+          "source": "N",
+          "target": "LAI",
+          "sign": "positive",
+          "relation": "positive"
+        },
+        {
+          "source": "W",
+          "target": "LAI",
+          "sign": "positive",
+          "relation": "positive"
+        },
+        {
+          "source": "LAI",
+          "target": "Ld",
+          "sign": "positive",
+          "relation": "positive"
+        },
+        {
+          "source": "W",
+          "target": "Ld",
+          "sign": "positive",
+          "relation": "positive"
+        },
+        {
+          "source": "LAI",
+          "target": "Y",
+          "sign": "positive",
+          "relation": "positive"
+        },
+        {
+          "source": "N",
+          "target": "Y",
+          "sign": "positive",
+          "relation": "positive"
+        },
+        {
+          "source": "O",
+          "target": "Y",
+          "sign": "positive",
+          "relation": "positive"
+        },
+        {
+          "source": "W",
+          "target": "Y",
+          "sign": "positive",
+          "relation": "positive"
+        },
+        {
+          "source": "T",
+          "target": "Y",
+          "sign": "negative",
+          "relation": "negative"
+        },
+        {
+          "source": "Ld",
+          "target": "Y",
+          "sign": "negative",
+          "relation": "negative"
+        }
+      ],
+      "bias_points": [
+        {
+          "name": "碰撞偏差",
+          "structure": "LAI → Ld ← W",
+          "note": "按高倒伏地块分层会压低叶面积与水分的真实关系。"
+        },
+        {
+          "name": "过度控制",
+          "structure": "N → LAI → Ld → Y",
+          "note": "控制倒伏会阻断施氮的减产通路。"
+        },
+        {
+          "name": "辛普森悖论",
+          "structure": "O → N 且 O → Y",
+          "note": "贫瘠地块多施肥造成氮肥普遍有害的观察假象。"
+        }
+      ],
+      "layout": {
+        "T": [
+          120,
+          70
+        ],
+        "P": [
+          360,
+          70
+        ],
+        "O": [
+          680,
+          70
+        ],
+        "I": [
+          300,
+          205
+        ],
+        "W": [
+          250,
+          350
+        ],
+        "N": [
+          620,
+          220
+        ],
+        "LAI": [
+          540,
+          350
+        ],
+        "Ld": [
+          460,
+          470
+        ],
+        "Y": [
+          760,
+          500
+        ]
+      }
+    },
+    {
+      "schema_version": "bias-v2",
+      "dataset_id": "monetary_policy",
+      "title_zh": "货币政策传导",
+      "title_en": "Interest rates, credit and inflation",
+      "domain": "宏观经济 · 加息、信贷与通胀",
+      "expertise": "泰勒规则、信贷渠道、菲利普斯曲线与价格之谜",
+      "boundary_zh": "冻结教学SCM，不用于宏观预测或投资判断。",
+      "topological_order": [
+        "G",
+        "E",
+        "R",
+        "L",
+        "C",
+        "I",
+        "P",
+        "U"
+      ],
+      "nodes": [
+        {
+          "id": "G",
+          "label_zh": "产出缺口",
+          "label_en": "Output gap",
+          "unit": "%",
+          "role": "根节点/混杂因子",
+          "reference_value": 1.8,
+          "min_value": -8,
+          "max_value": 8,
+          "decimals": 1,
+          "intervenable": false,
+          "suggested_intervention": null,
+          "latent": false,
+          "mechanism": {
+            "type": "input",
+            "formula_text": "冻结基线输入"
+          },
+          "discrete_options": [],
+          "parents": [],
+          "children": [
+            "R",
+            "L",
+            "C",
+            "P",
+            "U"
+          ]
+        },
+        {
+          "id": "E",
+          "label_zh": "通胀预期",
+          "label_en": "Inflation expectation",
+          "unit": "%",
+          "role": "根节点",
+          "reference_value": 2.6,
+          "min_value": 0,
+          "max_value": 10,
+          "decimals": 1,
+          "intervenable": false,
+          "suggested_intervention": null,
+          "latent": false,
+          "mechanism": {
+            "type": "input",
+            "formula_text": "冻结基线输入"
+          },
+          "discrete_options": [],
+          "parents": [],
+          "children": [
+            "R",
+            "P"
+          ]
+        },
+        {
+          "id": "R",
+          "label_zh": "政策利率",
+          "label_en": "Policy rate",
+          "unit": "%",
+          "role": "干预节点/碰撞点",
+          "reference_value": 2.73,
+          "min_value": 0,
+          "max_value": 12,
+          "decimals": 2,
+          "intervenable": true,
+          "suggested_intervention": 5.4,
+          "latent": false,
+          "mechanism": {
+            "type": "expression",
+            "expression": {
+              "op": "add",
+              "args": [
+                {
+                  "op": "const",
+                  "value": 1.2
+                },
+                {
+                  "op": "mul",
+                  "args": [
+                    {
+                      "op": "const",
+                      "value": 0.9
+                    },
+                    {
+                      "op": "max",
+                      "args": [
+                        {
+                          "op": "const",
+                          "value": 0
+                        },
+                        {
+                          "op": "sub",
+                          "a": {
+                            "op": "var",
+                            "id": "E"
+                          },
+                          "b": {
+                            "op": "const",
+                            "value": 2
+                          }
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "op": "mul",
+                  "args": [
+                    {
+                      "op": "const",
+                      "value": 0.55
+                    },
+                    {
+                      "op": "var",
+                      "id": "G"
+                    }
+                  ]
+                }
+              ]
+            },
+            "formula_text": "R = 1.2+0.9max(0,E−2)+0.55G"
+          },
+          "discrete_options": [
+            {
+              "kind": "low",
+              "label": "宽松情景",
+              "value": 1.5
+            },
+            {
+              "kind": "baseline",
+              "label": "基线",
+              "value": 2.73
+            },
+            {
+              "kind": "recommended",
+              "label": "加息情景",
+              "value": 5.4
+            }
+          ],
+          "parents": [
+            "E",
+            "G"
+          ],
+          "children": [
+            "L"
+          ]
+        },
+        {
+          "id": "L",
+          "label_zh": "银行贷款利率",
+          "label_en": "Bank lending rate",
+          "unit": "%",
+          "role": "中介",
+          "reference_value": 4.33,
+          "min_value": 0,
+          "max_value": 20,
+          "decimals": 2,
+          "intervenable": false,
+          "suggested_intervention": null,
+          "latent": false,
+          "mechanism": {
+            "type": "expression",
+            "expression": {
+              "op": "add",
+              "args": [
+                {
+                  "op": "const",
+                  "value": 1.6
+                },
+                {
+                  "op": "var",
+                  "id": "R"
+                },
+                {
+                  "op": "mul",
+                  "args": [
+                    {
+                      "op": "const",
+                      "value": 0.35
+                    },
+                    {
+                      "op": "max",
+                      "args": [
+                        {
+                          "op": "const",
+                          "value": 0
+                        },
+                        {
+                          "op": "mul",
+                          "args": [
+                            {
+                              "op": "const",
+                              "value": -1
+                            },
+                            {
+                              "op": "var",
+                              "id": "G"
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            "formula_text": "L = 1.6+R+0.35max(0,−G)"
+          },
+          "discrete_options": [],
+          "parents": [
+            "R",
+            "G"
+          ],
+          "children": [
+            "C"
+          ]
+        },
+        {
+          "id": "C",
+          "label_zh": "信贷增速",
+          "label_en": "Credit growth",
+          "unit": "%",
+          "role": "中介",
+          "reference_value": 14.41,
+          "min_value": -20,
+          "max_value": 30,
+          "decimals": 2,
+          "intervenable": false,
+          "suggested_intervention": null,
+          "latent": false,
+          "mechanism": {
+            "type": "expression",
+            "expression": {
+              "op": "add",
+              "args": [
+                {
+                  "op": "const",
+                  "value": 11
+                },
+                {
+                  "op": "mul",
+                  "args": [
+                    {
+                      "op": "const",
+                      "value": -2.4
+                    },
+                    {
+                      "op": "sub",
+                      "a": {
+                        "op": "var",
+                        "id": "L"
+                      },
+                      "b": {
+                        "op": "const",
+                        "value": 5
+                      }
+                    }
+                  ]
+                },
+                {
+                  "op": "var",
+                  "id": "G"
+                }
+              ]
+            },
+            "formula_text": "C = 11−2.4(L−5)+G"
+          },
+          "discrete_options": [],
+          "parents": [
+            "L",
+            "G"
+          ],
+          "children": [
+            "I"
+          ]
+        },
+        {
+          "id": "I",
+          "label_zh": "固定资产投资增速",
+          "label_en": "Investment growth",
+          "unit": "%",
+          "role": "中介",
+          "reference_value": 9.41,
+          "min_value": 0,
+          "max_value": 20,
+          "decimals": 2,
+          "intervenable": false,
+          "suggested_intervention": null,
+          "latent": false,
+          "mechanism": {
+            "type": "expression",
+            "expression": {
+              "op": "add",
+              "args": [
+                {
+                  "op": "const",
+                  "value": 2
+                },
+                {
+                  "op": "mul",
+                  "args": [
+                    {
+                      "op": "const",
+                      "value": 9
+                    },
+                    {
+                      "op": "sub",
+                      "a": {
+                        "op": "const",
+                        "value": 1
+                      },
+                      "b": {
+                        "op": "exp",
+                        "x": {
+                          "op": "mul",
+                          "args": [
+                            {
+                              "op": "const",
+                              "value": -1
+                            },
+                            {
+                              "op": "div",
+                              "a": {
+                                "op": "max",
+                                "args": [
+                                  {
+                                    "op": "const",
+                                    "value": 0
+                                  },
+                                  {
+                                    "op": "sub",
+                                    "a": {
+                                      "op": "var",
+                                      "id": "C"
+                                    },
+                                    "b": {
+                                      "op": "const",
+                                      "value": 4
+                                    }
+                                  }
+                                ]
+                              },
+                              "b": {
+                                "op": "const",
+                                "value": 6
+                              }
+                            }
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              ]
+            },
+            "formula_text": "I = 2+9(1−e^(−max(0,C−4)/6))"
+          },
+          "discrete_options": [],
+          "parents": [
+            "C"
+          ],
+          "children": [
+            "P",
+            "U"
+          ]
+        },
+        {
+          "id": "P",
+          "label_zh": "核心通胀率",
+          "label_en": "Core inflation",
+          "unit": "%",
+          "role": "结局",
+          "reference_value": 4.08,
+          "min_value": -5,
+          "max_value": 20,
+          "decimals": 2,
+          "intervenable": false,
+          "suggested_intervention": null,
+          "latent": false,
+          "mechanism": {
+            "type": "expression",
+            "expression": {
+              "op": "add",
+              "args": [
+                {
+                  "op": "const",
+                  "value": 0.6
+                },
+                {
+                  "op": "mul",
+                  "args": [
+                    {
+                      "op": "const",
+                      "value": 0.55
+                    },
+                    {
+                      "op": "var",
+                      "id": "E"
+                    }
+                  ]
+                },
+                {
+                  "op": "mul",
+                  "args": [
+                    {
+                      "op": "const",
+                      "value": 0.3
+                    },
+                    {
+                      "op": "var",
+                      "id": "G"
+                    }
+                  ]
+                },
+                {
+                  "op": "mul",
+                  "args": [
+                    {
+                      "op": "const",
+                      "value": 0.16
+                    },
+                    {
+                      "op": "var",
+                      "id": "I"
+                    }
+                  ]
+                },
+                {
+                  "op": "mul",
+                  "args": [
+                    {
+                      "op": "const",
+                      "value": 0.8
+                    },
+                    {
+                      "op": "pow",
+                      "a": {
+                        "op": "max",
+                        "args": [
+                          {
+                            "op": "const",
+                            "value": 0
+                          },
+                          {
+                            "op": "sub",
+                            "a": {
+                              "op": "var",
+                              "id": "G"
+                            },
+                            "b": {
+                              "op": "const",
+                              "value": 2.5
+                            }
+                          }
+                        ]
+                      },
+                      "b": {
+                        "op": "const",
+                        "value": 2
+                      }
+                    }
+                  ]
+                }
+              ]
+            },
+            "formula_text": "非线性菲利普斯曲线"
+          },
+          "discrete_options": [],
+          "parents": [
+            "E",
+            "G",
+            "I"
+          ],
+          "children": []
+        },
+        {
+          "id": "U",
+          "label_zh": "失业率",
+          "label_en": "Unemployment",
+          "unit": "%",
+          "role": "结局",
+          "reference_value": 4.09,
+          "min_value": 0,
+          "max_value": 30,
+          "decimals": 2,
+          "intervenable": false,
+          "suggested_intervention": null,
+          "latent": false,
+          "mechanism": {
+            "type": "expression",
+            "expression": {
+              "op": "add",
+              "args": [
+                {
+                  "op": "const",
+                  "value": 6
+                },
+                {
+                  "op": "mul",
+                  "args": [
+                    {
+                      "op": "const",
+                      "value": -0.52
+                    },
+                    {
+                      "op": "var",
+                      "id": "G"
+                    }
+                  ]
+                },
+                {
+                  "op": "mul",
+                  "args": [
+                    {
+                      "op": "const",
+                      "value": -0.16
+                    },
+                    {
+                      "op": "var",
+                      "id": "I"
+                    }
+                  ]
+                },
+                {
+                  "op": "mul",
+                  "args": [
+                    {
+                      "op": "const",
+                      "value": 0.006
+                    },
+                    {
+                      "op": "pow",
+                      "a": {
+                        "op": "var",
+                        "id": "I"
+                      },
+                      "b": {
+                        "op": "const",
+                        "value": 2
+                      }
+                    }
+                  ]
+                }
+              ]
+            },
+            "formula_text": "U = 6−0.52G−0.16I+0.006I²"
+          },
+          "discrete_options": [],
+          "parents": [
+            "G",
+            "I"
+          ],
+          "children": []
+        }
+      ],
+      "edges": [
+        {
+          "source": "E",
+          "target": "R",
+          "sign": "positive",
+          "relation": "positive"
+        },
+        {
+          "source": "G",
+          "target": "R",
+          "sign": "positive",
+          "relation": "positive"
+        },
+        {
+          "source": "R",
+          "target": "L",
+          "sign": "positive",
+          "relation": "positive"
+        },
+        {
+          "source": "G",
+          "target": "L",
+          "sign": "positive",
+          "relation": "positive"
+        },
+        {
+          "source": "L",
+          "target": "C",
+          "sign": "negative",
+          "relation": "negative"
+        },
+        {
+          "source": "G",
+          "target": "C",
+          "sign": "positive",
+          "relation": "positive"
+        },
+        {
+          "source": "C",
+          "target": "I",
+          "sign": "positive",
+          "relation": "positive"
+        },
+        {
+          "source": "E",
+          "target": "P",
+          "sign": "positive",
+          "relation": "positive"
+        },
+        {
+          "source": "G",
+          "target": "P",
+          "sign": "positive",
+          "relation": "positive"
+        },
+        {
+          "source": "I",
+          "target": "P",
+          "sign": "positive",
+          "relation": "positive"
+        },
+        {
+          "source": "G",
+          "target": "U",
+          "sign": "negative",
+          "relation": "negative"
+        },
+        {
+          "source": "I",
+          "target": "U",
+          "sign": "negative",
+          "relation": "negative"
+        }
+      ],
+      "bias_points": [
+        {
+          "name": "碰撞偏差",
+          "structure": "G → R ← E",
+          "note": "按高利率时期分层会制造产出缺口与预期的负相关。"
+        },
+        {
+          "name": "过度控制",
+          "structure": "R → L → C → I → P",
+          "note": "控制信贷链会截断加息的传导机制。"
+        },
+        {
+          "name": "价格之谜",
+          "structure": "G/E → R 且 G/E → P",
+          "note": "观察数据中利率与通胀正相关，但干预加息使模型通胀下降。"
+        }
+      ],
+      "layout": {
+        "G": [
+          240,
+          70
+        ],
+        "E": [
+          700,
+          70
+        ],
+        "R": [
+          500,
+          180
+        ],
+        "L": [
+          500,
+          295
+        ],
+        "C": [
+          500,
+          405
+        ],
+        "I": [
+          500,
+          515
+        ],
+        "P": [
+          780,
+          515
+        ],
+        "U": [
+          220,
+          515
+        ]
+      }
+    },
+    {
+      "schema_version": "bias-v2",
+      "dataset_id": "tutoring_education",
+      "title_zh": "课外辅导与学业成绩",
+      "title_en": "Tutoring and academic achievement",
+      "domain": "教育经济 · 辅导、睡眠、焦虑与成绩",
+      "expertise": "按需分配、学习挤出与Yerkes–Dodson倒U",
+      "boundary_zh": "冻结教学SCM，不用于学生评价或教育决策。",
+      "topological_order": [
+        "F",
+        "Q",
+        "E",
+        "B",
+        "T",
+        "S",
+        "H",
+        "A",
+        "G"
+      ],
+      "nodes": [
+        {
+          "id": "F",
+          "label_zh": "家庭SES",
+          "label_en": "Family SES",
+          "unit": "z分数",
+          "role": "根节点",
+          "reference_value": 0.5,
+          "min_value": -3,
+          "max_value": 3,
+          "decimals": 2,
+          "intervenable": false,
+          "suggested_intervention": null,
+          "latent": false,
+          "mechanism": {
+            "type": "input",
+            "formula_text": "冻结基线输入"
+          },
+          "discrete_options": [],
+          "parents": [],
+          "children": [
+            "E"
+          ]
+        },
+        {
+          "id": "E",
+          "label_zh": "父母教育年限",
+          "label_en": "Parental education",
+          "unit": "年",
+          "role": "中介",
+          "reference_value": 13.5,
+          "min_value": 0,
+          "max_value": 25,
+          "decimals": 1,
+          "intervenable": false,
+          "suggested_intervention": null,
+          "latent": false,
+          "mechanism": {
+            "type": "expression",
+            "expression": {
+              "op": "add",
+              "args": [
+                {
+                  "op": "const",
+                  "value": 12
+                },
+                {
+                  "op": "mul",
+                  "args": [
+                    {
+                      "op": "const",
+                      "value": 3
+                    },
+                    {
+                      "op": "var",
+                      "id": "F"
+                    }
+                  ]
+                }
+              ]
+            },
+            "formula_text": "E = 12+3F"
+          },
+          "discrete_options": [],
+          "parents": [
+            "F"
+          ],
+          "children": [
+            "B"
+          ]
+        },
+        {
+          "id": "Q",
+          "label_zh": "学校质量指数",
+          "label_en": "School quality",
+          "unit": "分",
+          "role": "根节点",
+          "reference_value": 74,
+          "min_value": 0,
+          "max_value": 100,
+          "decimals": 0,
+          "intervenable": false,
+          "suggested_intervention": null,
+          "latent": false,
+          "mechanism": {
+            "type": "input",
+            "formula_text": "冻结基线输入"
+          },
+          "discrete_options": [],
+          "parents": [],
+          "children": [
+            "B",
+            "G"
+          ]
+        },
+        {
+          "id": "B",
+          "label_zh": "入学前测成绩",
+          "label_en": "Baseline score",
+          "unit": "分",
+          "role": "混杂因子",
+          "reference_value": 83.9,
+          "min_value": 0,
+          "max_value": 100,
+          "decimals": 1,
+          "intervenable": false,
+          "suggested_intervention": null,
+          "latent": false,
+          "mechanism": {
+            "type": "expression",
+            "expression": {
+              "op": "add",
+              "args": [
+                {
+                  "op": "const",
+                  "value": 30
+                },
+                {
+                  "op": "mul",
+                  "args": [
+                    {
+                      "op": "const",
+                      "value": 1.8
+                    },
+                    {
+                      "op": "var",
+                      "id": "E"
+                    }
+                  ]
+                },
+                {
+                  "op": "mul",
+                  "args": [
+                    {
+                      "op": "const",
+                      "value": 0.4
+                    },
+                    {
+                      "op": "var",
+                      "id": "Q"
+                    }
+                  ]
+                }
+              ]
+            },
+            "formula_text": "B = 30+1.8E+0.40Q"
+          },
+          "discrete_options": [],
+          "parents": [
+            "E",
+            "Q"
+          ],
+          "children": [
+            "T",
+            "G"
+          ]
+        },
+        {
+          "id": "T",
+          "label_zh": "课外辅导时长",
+          "label_en": "Tutoring hours",
+          "unit": "h/周",
+          "role": "干预节点",
+          "reference_value": 5.23,
+          "min_value": 0,
+          "max_value": 20,
+          "decimals": 2,
+          "intervenable": true,
+          "suggested_intervention": 10,
+          "latent": false,
+          "mechanism": {
+            "type": "expression",
+            "expression": {
+              "op": "add",
+              "args": [
+                {
+                  "op": "const",
+                  "value": 3.5
+                },
+                {
+                  "op": "mul",
+                  "args": [
+                    {
+                      "op": "const",
+                      "value": 11
+                    },
+                    {
+                      "op": "exp",
+                      "x": {
+                        "op": "mul",
+                        "args": [
+                          {
+                            "op": "const",
+                            "value": -1
+                          },
+                          {
+                            "op": "div",
+                            "a": {
+                              "op": "sub",
+                              "a": {
+                                "op": "var",
+                                "id": "B"
+                              },
+                              "b": {
+                                "op": "const",
+                                "value": 58
+                              }
+                            },
+                            "b": {
+                              "op": "const",
+                              "value": 14
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  ]
+                }
+              ]
+            },
+            "formula_text": "T = 3.5+11e^(−(B−58)/14)"
+          },
+          "discrete_options": [
+            {
+              "kind": "low",
+              "label": "低辅导情景",
+              "value": 2
+            },
+            {
+              "kind": "baseline",
+              "label": "基线",
+              "value": 5.23
+            },
+            {
+              "kind": "recommended",
+              "label": "高辅导情景",
+              "value": 10
+            }
+          ],
+          "parents": [
+            "B"
+          ],
+          "children": [
+            "S",
+            "A",
+            "G"
+          ]
+        },
+        {
+          "id": "S",
+          "label_zh": "自主学习时长",
+          "label_en": "Self-study hours",
+          "unit": "h/周",
+          "role": "中介",
+          "reference_value": 11.39,
+          "min_value": 0,
+          "max_value": 30,
+          "decimals": 2,
+          "intervenable": false,
+          "suggested_intervention": null,
+          "latent": false,
+          "mechanism": {
+            "type": "expression",
+            "expression": {
+              "op": "add",
+              "args": [
+                {
+                  "op": "const",
+                  "value": 7
+                },
+                {
+                  "op": "mul",
+                  "args": [
+                    {
+                      "op": "const",
+                      "value": 1.1
+                    },
+                    {
+                      "op": "var",
+                      "id": "T"
+                    }
+                  ]
+                },
+                {
+                  "op": "mul",
+                  "args": [
+                    {
+                      "op": "const",
+                      "value": -0.05
+                    },
+                    {
+                      "op": "pow",
+                      "a": {
+                        "op": "var",
+                        "id": "T"
+                      },
+                      "b": {
+                        "op": "const",
+                        "value": 2
+                      }
+                    }
+                  ]
+                }
+              ]
+            },
+            "formula_text": "S = 7+1.1T−0.05T²"
+          },
+          "discrete_options": [],
+          "parents": [
+            "T"
+          ],
+          "children": [
+            "H",
+            "G"
+          ]
+        },
+        {
+          "id": "H",
+          "label_zh": "睡眠时长",
+          "label_en": "Sleep duration",
+          "unit": "h/天",
+          "role": "中介",
+          "reference_value": 7.41,
+          "min_value": 0,
+          "max_value": 12,
+          "decimals": 2,
+          "intervenable": false,
+          "suggested_intervention": null,
+          "latent": false,
+          "mechanism": {
+            "type": "expression",
+            "expression": {
+              "op": "add",
+              "args": [
+                {
+                  "op": "const",
+                  "value": 9
+                },
+                {
+                  "op": "mul",
+                  "args": [
+                    {
+                      "op": "const",
+                      "value": -0.14
+                    },
+                    {
+                      "op": "var",
+                      "id": "S"
+                    }
+                  ]
+                }
+              ]
+            },
+            "formula_text": "H = 9−0.14S"
+          },
+          "discrete_options": [],
+          "parents": [
+            "S"
+          ],
+          "children": [
+            "A",
+            "G"
+          ]
+        },
+        {
+          "id": "A",
+          "label_zh": "考试焦虑",
+          "label_en": "Test anxiety",
+          "unit": "指数",
+          "role": "中介",
+          "reference_value": 2.07,
+          "min_value": 0,
+          "max_value": 10,
+          "decimals": 2,
+          "intervenable": false,
+          "suggested_intervention": null,
+          "latent": false,
+          "mechanism": {
+            "type": "expression",
+            "expression": {
+              "op": "add",
+              "args": [
+                {
+                  "op": "const",
+                  "value": 1.2
+                },
+                {
+                  "op": "mul",
+                  "args": [
+                    {
+                      "op": "const",
+                      "value": 0.3
+                    },
+                    {
+                      "op": "max",
+                      "args": [
+                        {
+                          "op": "const",
+                          "value": 0
+                        },
+                        {
+                          "op": "sub",
+                          "a": {
+                            "op": "const",
+                            "value": 8.2
+                          },
+                          "b": {
+                            "op": "var",
+                            "id": "H"
+                          }
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "op": "mul",
+                  "args": [
+                    {
+                      "op": "const",
+                      "value": 0.045
+                    },
+                    {
+                      "op": "pow",
+                      "a": {
+                        "op": "var",
+                        "id": "T"
+                      },
+                      "b": {
+                        "op": "const",
+                        "value": 1.6
+                      }
+                    }
+                  ]
+                }
+              ]
+            },
+            "formula_text": "A = 1.2+0.30max(0,8.2−H)+0.045T^1.6"
+          },
+          "discrete_options": [],
+          "parents": [
+            "H",
+            "T"
+          ],
+          "children": [
+            "G"
+          ]
+        },
+        {
+          "id": "G",
+          "label_zh": "后测成绩",
+          "label_en": "Post-test score",
+          "unit": "分",
+          "role": "结局/选择节点",
+          "reference_value": 71.86,
+          "min_value": 0,
+          "max_value": 100,
+          "decimals": 2,
+          "intervenable": false,
+          "suggested_intervention": null,
+          "latent": false,
+          "mechanism": {
+            "type": "expression",
+            "expression": {
+              "op": "add",
+              "args": [
+                {
+                  "op": "mul",
+                  "args": [
+                    {
+                      "op": "const",
+                      "value": 0.55
+                    },
+                    {
+                      "op": "var",
+                      "id": "B"
+                    }
+                  ]
+                },
+                {
+                  "op": "mul",
+                  "args": [
+                    {
+                      "op": "const",
+                      "value": 4.5
+                    },
+                    {
+                      "op": "log",
+                      "x": {
+                        "op": "add",
+                        "args": [
+                          {
+                            "op": "const",
+                            "value": 1
+                          },
+                          {
+                            "op": "var",
+                            "id": "T"
+                          }
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "op": "mul",
+                  "args": [
+                    {
+                      "op": "const",
+                      "value": 1.2
+                    },
+                    {
+                      "op": "var",
+                      "id": "S"
+                    }
+                  ]
+                },
+                {
+                  "op": "mul",
+                  "args": [
+                    {
+                      "op": "const",
+                      "value": -0.055
+                    },
+                    {
+                      "op": "pow",
+                      "a": {
+                        "op": "var",
+                        "id": "S"
+                      },
+                      "b": {
+                        "op": "const",
+                        "value": 2
+                      }
+                    }
+                  ]
+                },
+                {
+                  "op": "mul",
+                  "args": [
+                    {
+                      "op": "const",
+                      "value": 1.5
+                    },
+                    {
+                      "op": "sub",
+                      "a": {
+                        "op": "var",
+                        "id": "H"
+                      },
+                      "b": {
+                        "op": "const",
+                        "value": 7
+                      }
+                    }
+                  ]
+                },
+                {
+                  "op": "mul",
+                  "args": [
+                    {
+                      "op": "const",
+                      "value": 0.15
+                    },
+                    {
+                      "op": "var",
+                      "id": "Q"
+                    }
+                  ]
+                },
+                {
+                  "op": "mul",
+                  "args": [
+                    {
+                      "op": "const",
+                      "value": -0.6
+                    },
+                    {
+                      "op": "pow",
+                      "a": {
+                        "op": "sub",
+                        "a": {
+                          "op": "var",
+                          "id": "A"
+                        },
+                        "b": {
+                          "op": "const",
+                          "value": 3.2
+                        }
+                      },
+                      "b": {
+                        "op": "const",
+                        "value": 2
+                      }
+                    }
+                  ]
+                }
+              ]
+            },
+            "formula_text": "含Yerkes–Dodson倒U的成绩方程"
+          },
+          "discrete_options": [],
+          "parents": [
+            "B",
+            "T",
+            "S",
+            "H",
+            "Q",
+            "A"
+          ],
+          "children": []
+        }
+      ],
+      "edges": [
+        {
+          "source": "F",
+          "target": "E",
+          "sign": "positive",
+          "relation": "positive"
+        },
+        {
+          "source": "E",
+          "target": "B",
+          "sign": "positive",
+          "relation": "positive"
+        },
+        {
+          "source": "Q",
+          "target": "B",
+          "sign": "positive",
+          "relation": "positive"
+        },
+        {
+          "source": "B",
+          "target": "T",
+          "sign": "negative",
+          "relation": "negative"
+        },
+        {
+          "source": "T",
+          "target": "S",
+          "sign": "positive",
+          "relation": "positive"
+        },
+        {
+          "source": "S",
+          "target": "H",
+          "sign": "negative",
+          "relation": "negative"
+        },
+        {
+          "source": "H",
+          "target": "A",
+          "sign": "negative",
+          "relation": "negative"
+        },
+        {
+          "source": "T",
+          "target": "A",
+          "sign": "positive",
+          "relation": "positive"
+        },
+        {
+          "source": "B",
+          "target": "G",
+          "sign": "positive",
+          "relation": "positive"
+        },
+        {
+          "source": "T",
+          "target": "G",
+          "sign": "positive",
+          "relation": "positive"
+        },
+        {
+          "source": "S",
+          "target": "G",
+          "sign": "positive",
+          "relation": "positive"
+        },
+        {
+          "source": "H",
+          "target": "G",
+          "sign": "positive",
+          "relation": "positive"
+        },
+        {
+          "source": "Q",
+          "target": "G",
+          "sign": "positive",
+          "relation": "positive"
+        },
+        {
+          "source": "A",
+          "target": "G",
+          "sign": "positive",
+          "relation": "positive"
+        }
+      ],
+      "bias_points": [
+        {
+          "name": "选择偏差",
+          "structure": "B → G ← T",
+          "note": "只追踪高分生相当于对共同效应G选样。"
+        },
+        {
+          "name": "过度控制",
+          "structure": "T → S → H → A → G",
+          "note": "控制学习时间会截断辅导的总效应。"
+        },
+        {
+          "name": "辛普森悖论",
+          "structure": "B → T（负）且 B → G（正）",
+          "note": "差生多补习造成补习越多成绩越差的原始相关。"
+        }
+      ],
+      "layout": {
+        "F": [
+          160,
+          70
+        ],
+        "Q": [
+          650,
+          70
+        ],
+        "E": [
+          160,
+          200
+        ],
+        "B": [
+          420,
+          200
+        ],
+        "T": [
+          420,
+          330
+        ],
+        "S": [
+          240,
+          440
+        ],
+        "H": [
+          240,
+          555
+        ],
+        "A": [
+          520,
+          500
+        ],
+        "G": [
+          780,
+          500
+        ]
+      }
+    },
+    {
+      "schema_version": "bias-v2",
+      "dataset_id": "supply_chain_bullwhip",
+      "title_zh": "供应链牛鞭效应",
+      "title_en": "Safety stock, lead time and stockouts",
+      "domain": "供应链运营 · 安全库存、提前期与缺货率",
+      "expertise": "需求预测过度反应、Kingman拥堵与M-偏倚",
+      "boundary_zh": "冻结教学SCM；潜在节点用虚线显示，不用于真实库存决策。",
+      "topological_order": [
+        "V",
+        "U1",
+        "U2",
+        "F",
+        "S",
+        "O",
+        "L",
+        "Z",
+        "K"
+      ],
+      "nodes": [
+        {
+          "id": "V",
+          "label_zh": "需求波动系数",
+          "label_en": "Demand variability",
+          "unit": "CV",
+          "role": "根节点/混杂因子",
+          "reference_value": 0.35,
+          "min_value": 0,
+          "max_value": 1,
+          "decimals": 2,
+          "intervenable": false,
+          "suggested_intervention": null,
+          "latent": false,
+          "mechanism": {
+            "type": "input",
+            "formula_text": "冻结基线输入"
+          },
+          "discrete_options": [],
+          "parents": [],
+          "children": [
+            "F",
+            "S"
+          ]
+        },
+        {
+          "id": "U1",
+          "label_zh": "采购经理经验",
+          "label_en": "Manager experience",
+          "unit": "年",
+          "role": "潜在根节点",
+          "reference_value": 8,
+          "min_value": 0,
+          "max_value": 40,
+          "decimals": 2,
+          "intervenable": false,
+          "suggested_intervention": null,
+          "latent": true,
+          "mechanism": {
+            "type": "input",
+            "formula_text": "未观测潜在输入"
+          },
+          "discrete_options": [],
+          "parents": [],
+          "children": [
+            "S",
+            "Z"
+          ]
+        },
+        {
+          "id": "U2",
+          "label_zh": "供应商真实可靠性",
+          "label_en": "Supplier reliability",
+          "unit": "指数",
+          "role": "潜在根节点",
+          "reference_value": 70,
+          "min_value": 0,
+          "max_value": 100,
+          "decimals": 2,
+          "intervenable": false,
+          "suggested_intervention": null,
+          "latent": true,
+          "mechanism": {
+            "type": "input",
+            "formula_text": "未观测潜在输入"
+          },
+          "discrete_options": [],
+          "parents": [],
+          "children": [
+            "K",
+            "Z"
+          ]
+        },
+        {
+          "id": "F",
+          "label_zh": "需求预测",
+          "label_en": "Demand forecast",
+          "unit": "件/日",
+          "role": "中介",
+          "reference_value": 793,
+          "min_value": 0,
+          "max_value": 2000,
+          "decimals": 0,
+          "intervenable": false,
+          "suggested_intervention": null,
+          "latent": false,
+          "mechanism": {
+            "type": "expression",
+            "expression": {
+              "op": "mul",
+              "args": [
+                {
+                  "op": "const",
+                  "value": 520
+                },
+                {
+                  "op": "add",
+                  "args": [
+                    {
+                      "op": "const",
+                      "value": 1
+                    },
+                    {
+                      "op": "mul",
+                      "args": [
+                        {
+                          "op": "const",
+                          "value": 1.5
+                        },
+                        {
+                          "op": "var",
+                          "id": "V"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            "formula_text": "F = 520(1+1.5V)"
+          },
+          "discrete_options": [],
+          "parents": [
+            "V"
+          ],
+          "children": [
+            "O"
+          ]
+        },
+        {
+          "id": "S",
+          "label_zh": "安全库存天数",
+          "label_en": "Safety stock",
+          "unit": "天",
+          "role": "干预节点",
+          "reference_value": 3.62,
+          "min_value": 0,
+          "max_value": 15,
+          "decimals": 2,
+          "intervenable": true,
+          "suggested_intervention": 9,
+          "latent": false,
+          "mechanism": {
+            "type": "expression",
+            "expression": {
+              "op": "add",
+              "args": [
+                {
+                  "op": "const",
+                  "value": 3
+                },
+                {
+                  "op": "mul",
+                  "args": [
+                    {
+                      "op": "const",
+                      "value": 3
+                    },
+                    {
+                      "op": "pow",
+                      "a": {
+                        "op": "var",
+                        "id": "V"
+                      },
+                      "b": {
+                        "op": "const",
+                        "value": 1.5
+                      }
+                    }
+                  ]
+                },
+                {
+                  "op": "mul",
+                  "args": [
+                    {
+                      "op": "const",
+                      "value": 0.3
+                    },
+                    {
+                      "op": "sub",
+                      "a": {
+                        "op": "var",
+                        "id": "U1"
+                      },
+                      "b": {
+                        "op": "const",
+                        "value": 8
+                      }
+                    }
+                  ]
+                }
+              ]
+            },
+            "formula_text": "S = 3+3V^1.5+0.3(U1−8)"
+          },
+          "discrete_options": [
+            {
+              "kind": "low",
+              "label": "精益降库存",
+              "value": 2
+            },
+            {
+              "kind": "baseline",
+              "label": "基线",
+              "value": 3.62
+            },
+            {
+              "kind": "recommended",
+              "label": "高安全库存",
+              "value": 9
+            }
+          ],
+          "parents": [
+            "V",
+            "U1"
+          ],
+          "children": [
+            "O",
+            "K"
+          ]
+        },
+        {
+          "id": "O",
+          "label_zh": "订货量",
+          "label_en": "Order quantity",
+          "unit": "件/日",
+          "role": "碰撞点/中介",
+          "reference_value": 936.58,
+          "min_value": 0,
+          "max_value": 1600,
+          "decimals": 2,
+          "intervenable": false,
+          "suggested_intervention": null,
+          "latent": false,
+          "mechanism": {
+            "type": "expression",
+            "expression": {
+              "op": "mul",
+              "args": [
+                {
+                  "op": "var",
+                  "id": "F"
+                },
+                {
+                  "op": "add",
+                  "args": [
+                    {
+                      "op": "const",
+                      "value": 1
+                    },
+                    {
+                      "op": "mul",
+                      "args": [
+                        {
+                          "op": "const",
+                          "value": 0.05
+                        },
+                        {
+                          "op": "var",
+                          "id": "S"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            "formula_text": "O = F(1+0.05S)"
+          },
+          "discrete_options": [],
+          "parents": [
+            "F",
+            "S"
+          ],
+          "children": [
+            "L"
+          ]
+        },
+        {
+          "id": "L",
+          "label_zh": "平均提前期",
+          "label_en": "Lead time",
+          "unit": "天",
+          "role": "中介",
+          "reference_value": 6.41,
+          "min_value": 0,
+          "max_value": 100,
+          "decimals": 2,
+          "intervenable": false,
+          "suggested_intervention": null,
+          "latent": false,
+          "mechanism": {
+            "type": "expression",
+            "expression": {
+              "op": "add",
+              "args": [
+                {
+                  "op": "const",
+                  "value": 2
+                },
+                {
+                  "op": "mul",
+                  "args": [
+                    {
+                      "op": "const",
+                      "value": 3.5
+                    },
+                    {
+                      "op": "div",
+                      "a": {
+                        "op": "div",
+                        "a": {
+                          "op": "var",
+                          "id": "O"
+                        },
+                        "b": {
+                          "op": "const",
+                          "value": 1600
+                        }
+                      },
+                      "b": {
+                        "op": "sub",
+                        "a": {
+                          "op": "const",
+                          "value": 1.05
+                        },
+                        "b": {
+                          "op": "div",
+                          "a": {
+                            "op": "var",
+                            "id": "O"
+                          },
+                          "b": {
+                            "op": "const",
+                            "value": 1600
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              ]
+            },
+            "formula_text": "Kingman拥堵公式"
+          },
+          "discrete_options": [],
+          "parents": [
+            "O"
+          ],
+          "children": [
+            "K"
+          ]
+        },
+        {
+          "id": "Z",
+          "label_zh": "供应商年度评级",
+          "label_en": "Supplier rating",
+          "unit": "分",
+          "role": "M-偏倚节点",
+          "reference_value": 76.5,
+          "min_value": 0,
+          "max_value": 100,
+          "decimals": 2,
+          "intervenable": false,
+          "suggested_intervention": null,
+          "latent": false,
+          "mechanism": {
+            "type": "expression",
+            "expression": {
+              "op": "add",
+              "args": [
+                {
+                  "op": "const",
+                  "value": 10
+                },
+                {
+                  "op": "mul",
+                  "args": [
+                    {
+                      "op": "const",
+                      "value": 3.5
+                    },
+                    {
+                      "op": "var",
+                      "id": "U1"
+                    }
+                  ]
+                },
+                {
+                  "op": "mul",
+                  "args": [
+                    {
+                      "op": "const",
+                      "value": 0.55
+                    },
+                    {
+                      "op": "var",
+                      "id": "U2"
+                    }
+                  ]
+                }
+              ]
+            },
+            "formula_text": "Z = 10+3.5U1+0.55U2"
+          },
+          "discrete_options": [],
+          "parents": [
+            "U1",
+            "U2"
+          ],
+          "children": []
+        },
+        {
+          "id": "K",
+          "label_zh": "缺货率",
+          "label_en": "Stockout rate",
+          "unit": "%",
+          "role": "结局",
+          "reference_value": 32.75,
+          "min_value": 0,
+          "max_value": 100,
+          "decimals": 2,
+          "intervenable": false,
+          "suggested_intervention": null,
+          "latent": false,
+          "mechanism": {
+            "type": "expression",
+            "expression": {
+              "op": "add",
+              "args": [
+                {
+                  "op": "mul",
+                  "args": [
+                    {
+                      "op": "const",
+                      "value": 100
+                    },
+                    {
+                      "op": "sigmoid",
+                      "x": {
+                        "op": "mul",
+                        "args": [
+                          {
+                            "op": "const",
+                            "value": 4
+                          },
+                          {
+                            "op": "sub",
+                            "a": {
+                              "op": "div",
+                              "a": {
+                                "op": "add",
+                                "args": [
+                                  {
+                                    "op": "var",
+                                    "id": "L"
+                                  },
+                                  {
+                                    "op": "const",
+                                    "value": 2
+                                  }
+                                ]
+                              },
+                              "b": {
+                                "op": "add",
+                                "args": [
+                                  {
+                                    "op": "var",
+                                    "id": "S"
+                                  },
+                                  {
+                                    "op": "const",
+                                    "value": 3
+                                  }
+                                ]
+                              }
+                            },
+                            "b": {
+                              "op": "const",
+                              "value": 1.45
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "op": "mul",
+                  "args": [
+                    {
+                      "op": "const",
+                      "value": -1.2
+                    },
+                    {
+                      "op": "sub",
+                      "a": {
+                        "op": "var",
+                        "id": "U2"
+                      },
+                      "b": {
+                        "op": "const",
+                        "value": 70
+                      }
+                    }
+                  ]
+                }
+              ]
+            },
+            "formula_text": "K = 100σ(4((L+2)/(S+3)−1.45))−1.2(U2−70)"
+          },
+          "discrete_options": [],
+          "parents": [
+            "L",
+            "S",
+            "U2"
+          ],
+          "children": []
+        }
+      ],
+      "edges": [
+        {
+          "source": "V",
+          "target": "F",
+          "sign": "positive",
+          "relation": "positive"
+        },
+        {
+          "source": "V",
+          "target": "S",
+          "sign": "positive",
+          "relation": "positive"
+        },
+        {
+          "source": "U1",
+          "target": "S",
+          "sign": "positive",
+          "relation": "positive"
+        },
+        {
+          "source": "F",
+          "target": "O",
+          "sign": "positive",
+          "relation": "positive"
+        },
+        {
+          "source": "S",
+          "target": "O",
+          "sign": "positive",
+          "relation": "positive"
+        },
+        {
+          "source": "O",
+          "target": "L",
+          "sign": "positive",
+          "relation": "positive"
+        },
+        {
+          "source": "L",
+          "target": "K",
+          "sign": "positive",
+          "relation": "positive"
+        },
+        {
+          "source": "S",
+          "target": "K",
+          "sign": "negative",
+          "relation": "negative"
+        },
+        {
+          "source": "U2",
+          "target": "K",
+          "sign": "negative",
+          "relation": "negative"
+        },
+        {
+          "source": "U1",
+          "target": "Z",
+          "sign": "positive",
+          "relation": "positive"
+        },
+        {
+          "source": "U2",
+          "target": "Z",
+          "sign": "positive",
+          "relation": "positive"
+        }
+      ],
+      "bias_points": [
+        {
+          "name": "M-偏倚",
+          "structure": "S ← U1 → Z ← U2 → K",
+          "note": "控制看似合理的供应商评级Z会打开潜在碰撞路径。"
+        },
+        {
+          "name": "过度控制",
+          "structure": "S → O → L → K",
+          "note": "控制提前期会阻断安全库存的间接通路。"
+        },
+        {
+          "name": "混杂掩盖",
+          "structure": "V → S 且 V → F → O → L → K",
+          "note": "高波动同时推高库存和缺货，掩盖安全库存的保护作用。"
+        }
+      ],
+      "layout": {
+        "V": [
+          120,
+          70
+        ],
+        "U1": [
+          480,
+          70
+        ],
+        "U2": [
+          820,
+          70
+        ],
+        "F": [
+          120,
+          230
+        ],
+        "S": [
+          420,
+          245
+        ],
+        "Z": [
+          790,
+          245
+        ],
+        "O": [
+          350,
+          380
+        ],
+        "L": [
+          350,
+          520
+        ],
+        "K": [
+          720,
+          500
+        ]
+      }
+    }
+  ]
+}
