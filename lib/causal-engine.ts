@@ -6,6 +6,16 @@ export type DiscreteOption = {
   value: number;
 };
 
+type Expression = {
+  op: string;
+  [key: string]: unknown;
+};
+
+type Mechanism = {
+  type: string;
+  [key: string]: unknown;
+};
+
 export type ModelNode = {
   id: string;
   label_zh: string;
@@ -20,7 +30,7 @@ export type ModelNode = {
   suggested_intervention: number | null;
   parents: string[];
   children: string[];
-  mechanism: Record<string, any>;
+  mechanism: Mechanism;
   discrete_options: DiscreteOption[];
   latent?: boolean;
 };
@@ -66,21 +76,21 @@ export type SimulationResult = {
 
 const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
 
-function evaluateExpression(expression: Record<string, any>, values: Record<string, number>): number {
+function evaluateExpression(expression: Expression, values: Record<string, number>): number {
   switch (expression.op) {
     case "const": return Number(expression.value);
-    case "var": return values[expression.id];
-    case "add": return expression.args.reduce((sum: number, item: Record<string, any>) => sum + evaluateExpression(item, values), 0);
-    case "sub": return evaluateExpression(expression.a, values) - evaluateExpression(expression.b, values);
-    case "mul": return expression.args.reduce((product: number, item: Record<string, any>) => product * evaluateExpression(item, values), 1);
-    case "div": return evaluateExpression(expression.a, values) / evaluateExpression(expression.b, values);
-    case "pow": return Math.pow(evaluateExpression(expression.a, values), evaluateExpression(expression.b, values));
-    case "sigmoid": return 1 / (1 + Math.exp(-evaluateExpression(expression.x, values)));
-    case "tanh": return Math.tanh(evaluateExpression(expression.x, values));
-    case "exp": return Math.exp(evaluateExpression(expression.x, values));
-    case "log": return Math.log(evaluateExpression(expression.x, values));
-    case "max": return Math.max(...expression.args.map((item: Record<string, any>) => evaluateExpression(item, values)));
-    case "clip": return clamp(evaluateExpression(expression.x, values), expression.min, expression.max);
+    case "var": return values[String(expression.id)];
+    case "add": return (expression.args as Expression[]).reduce((sum, item) => sum + evaluateExpression(item, values), 0);
+    case "sub": return evaluateExpression(expression.a as Expression, values) - evaluateExpression(expression.b as Expression, values);
+    case "mul": return (expression.args as Expression[]).reduce((product, item) => product * evaluateExpression(item, values), 1);
+    case "div": return evaluateExpression(expression.a as Expression, values) / evaluateExpression(expression.b as Expression, values);
+    case "pow": return Math.pow(evaluateExpression(expression.a as Expression, values), evaluateExpression(expression.b as Expression, values));
+    case "sigmoid": return 1 / (1 + Math.exp(-evaluateExpression(expression.x as Expression, values)));
+    case "tanh": return Math.tanh(evaluateExpression(expression.x as Expression, values));
+    case "exp": return Math.exp(evaluateExpression(expression.x as Expression, values));
+    case "log": return Math.log(evaluateExpression(expression.x as Expression, values));
+    case "max": return Math.max(...(expression.args as Expression[]).map((item) => evaluateExpression(item, values)));
+    case "clip": return clamp(evaluateExpression(expression.x as Expression, values), Number(expression.min), Number(expression.max));
     default: throw new Error(`Unsupported expression op: ${expression.op}`);
   }
 }
@@ -89,11 +99,12 @@ function evaluateNode(node: ModelNode, values: Record<string, number>): number {
   const mechanism = node.mechanism;
   if (mechanism.type === "input") return node.reference_value;
   if (mechanism.type === "expression") {
-    return clamp(evaluateExpression(mechanism.expression, values), node.min_value, node.max_value);
+    return clamp(evaluateExpression(mechanism.expression as Expression, values), node.min_value, node.max_value);
   }
   if (mechanism.type === "robust_merge") {
     let z = 0;
-    for (const parent of mechanism.parents) {
+    const parents = mechanism.parents as Array<{ id: string; reference: number; high: number; low: number; gain: number }>;
+    for (const parent of parents) {
       const x = values[parent.id];
       const scale = x >= parent.reference
         ? parent.high - parent.reference
@@ -102,8 +113,8 @@ function evaluateNode(node: ModelNode, values: Record<string, number>): number {
     }
     const u = Math.tanh(z);
     const result = u >= 0
-      ? mechanism.reference + (mechanism.high - mechanism.reference) * u
-      : mechanism.reference + (mechanism.reference - mechanism.low) * u;
+      ? Number(mechanism.reference) + (Number(mechanism.high) - Number(mechanism.reference)) * u
+      : Number(mechanism.reference) + (Number(mechanism.reference) - Number(mechanism.low)) * u;
     return clamp(result, node.min_value, node.max_value);
   }
   if (mechanism.type === "hill_network") {
@@ -112,16 +123,17 @@ function evaluateNode(node: ModelNode, values: Record<string, number>): number {
       return Math.pow(safeX, h) / (Math.pow(k, h) + Math.pow(safeX, h));
     };
     let z = 0;
-    for (const parent of mechanism.parents) {
+    const parents = mechanism.parents as Array<{ id: string; reference: number; k: number; hill: number; gain: number }>;
+    for (const parent of parents) {
       z += parent.gain * (
         hill(values[parent.id], parent.k, parent.hill)
         - hill(parent.reference, parent.k, parent.hill)
       );
     }
-    const u = Math.tanh(mechanism.output_gain * z);
+    const u = Math.tanh(Number(mechanism.output_gain) * z);
     const result = u >= 0
-      ? mechanism.reference + (mechanism.high - mechanism.reference) * u
-      : mechanism.reference + (mechanism.reference - mechanism.low) * u;
+      ? Number(mechanism.reference) + (Number(mechanism.high) - Number(mechanism.reference)) * u
+      : Number(mechanism.reference) + (Number(mechanism.reference) - Number(mechanism.low)) * u;
     return clamp(result, node.min_value, node.max_value);
   }
   throw new Error(`Unsupported mechanism type: ${mechanism.type}`);

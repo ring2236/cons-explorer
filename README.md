@@ -1,68 +1,50 @@
-# CoNS Explorer Demo
+# CoNS Explorer
 
-一个面向因果理解研究的 Cloudflare 原型：用户选择离散干预值，结构因果模型确定性地计算下游结果，后端只在缓存缺失时调用一次 AI，并将叙事写入 D1。
+一个完全静态的多节点因果情景探索器。用户可以让每个可干预节点保持自然变化，或从五个离散值中选择；页面随后直接读取预先计算的结果、专业说明和同一故事世界中的平行分支。
 
-## 数据来源
+## 当前数据
 
-模型从 `因果图候选库_v2_偏差考点版.md` 转换而来，当前生成包包含：
+- 5 个数据集、44 个节点、65 条结构方程依赖边
+- 每个数据集 2–3 个可组合设置的节点
+- 每个节点包含“自然变化”与 5 个固定值
+- 360 个静态情景，其中 355 个至少包含一次主动设置
+- 每个情景均包含专业说明和生动故事
 
-- 5 个数据集
-- 44 个节点
-- 65 条结构方程依赖边
-- ICU、农业、货币政策、教育与供应链 5 个教学场景
-- 每张图 3 个偏差考点，以及供应链图中的潜在变量
+模型来自 `因果图候选库_v2_偏差考点版.md`。静态情景位于 `lib/scenarios.generated.json`，离线叙事位于 `lib/narratives.generated.json`。
 
-原文的边数小计为 62，但图 1、3、4 各少计了一条方程依赖。模型以结构方程为准，保留全部 65 条边。
-
-重新生成模型：
-
-```bash
-node scripts/build-bias-models.mjs /absolute/path/to/因果图候选库_v2_偏差考点版.md lib/models.generated.json
-```
-
-转换脚本会校验数据集、节点、边、拓扑顺序和边端点，并将源文件 SHA-256 写入模型版本。
-
-## 成本控制
-
-1. 每个可干预节点只有 3–4 个预设离散值，后端拒绝任意连续值。
-2. 缓存键包含模型版本、提示词版本、数据集、节点和干预值。
-3. 请求先查询 D1；命中时直接返回，不调用 AI。
-4. 缺失时调用一次兼容 OpenAI Chat Completions 的接口，并把叙事与完整计算结果写入 `narrative_cache`。
-5. 未配置 AI 时使用确定性模板，便于本地完整演示缓存流程。
-
-## 本地运行
+## 本地运行与验证
 
 ```bash
 npm install
 npm run dev
 ```
 
-如需测试真实 AI，将 `.env.example` 复制为 `.env` 并填写：
-
-```text
-AI_API_KEY=
-AI_BASE_URL=
-AI_MODEL=
+```bash
+npm test
 ```
 
-不要提交包含真实密钥的 `.env`。
+## 重新生成离线内容
 
-## 验证
+先生成确定性情景：
 
 ```bash
-npm run build
-node scripts/validate-bias-models.mjs
-node --test tests/rendered-html.test.mjs
+npm run scenarios:generate
 ```
 
-## Cloudflare
+如需重新请求 DeepSeek，在本地终端临时设置 `DEEPSEEK_API_KEY`，然后运行：
 
-- `.openai/hosting.json` 声明 D1 绑定 `DB`
-- `db/schema.ts` 与 `drizzle/` 保存缓存表和迁移
-- `/api/narrative` 负责离散值校验、SCM复算、缓存查询和首次生成
+```bash
+npm run narratives:bibles
+npm run narratives:generate
+```
 
-### 直接部署到自己的 Cloudflare Workers
+API Key 只用于离线生成，不会进入前端构建或线上运行环境。
 
-在 Workers Builds 中设置构建命令 `npm run build` 和部署命令 `npx wrangler deploy`。未配置 D1 时，网站仍可公开运行，叙事接口会使用确定性演示结果。
+## Cloudflare 部署
 
-如需启用 D1 缓存，先创建 D1 数据库，然后在 Workers 的 **Settings → Build → Build variables** 添加非敏感变量 `CLOUDFLARE_D1_DATABASE_ID`，值为该数据库 ID；重新部署后绑定名会是 `DB`。
+Cloudflare Workers Builds 配置：
+
+- Build command：`npm run build`
+- Deploy command：`npx wrangler deploy`
+
+线上页面不连接数据库，也不调用生成式 AI，无需配置 D1、API Key 或其他运行时变量。

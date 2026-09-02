@@ -11,8 +11,10 @@ test("ships the finished CoNS Explorer instead of the starter", async () => {
     readFile(new URL("app/layout.tsx", root), "utf8"),
   ]);
   assert.match(page, /<Explorer/);
-  assert.match(explorer, /离散情景值/);
-  assert.match(explorer, /数据库命中/);
+  assert.match(explorer, /组合多个选择/);
+  assert.match(explorer, /专业说明/);
+  assert.match(explorer, /生动故事/);
+  assert.doesNotMatch(explorer, /fetch\(|\/api\/narrative|数据库命中/);
   assert.match(layout, /CoNS Explorer/);
   assert.doesNotMatch(`${page}${explorer}${layout}`, /codex-preview|SkeletonPreview|Your site is taking shape/);
 });
@@ -28,15 +30,31 @@ test("contains the complete bias-teaching model bundle", async () => {
   assert.ok(bundle.datasets.every((item) => item.nodes.every((node) => !node.intervenable || node.discrete_options.length >= 3)));
 });
 
-test("uses a versioned D1 narrative cache", async () => {
-  const [route, schema, hosting] = await Promise.all([
-    readFile(new URL("app/api/narrative/route.ts", root), "utf8"),
-    readFile(new URL("db/schema.ts", root), "utf8"),
-    readFile(new URL(".openai/hosting.json", root), "utf8"),
+test("ships all static scenarios and both narrative versions", async () => {
+  const [scenarios, narratives] = await Promise.all([
+    readFile(new URL("lib/scenarios.generated.json", root), "utf8").then(JSON.parse),
+    readFile(new URL("lib/narratives.generated.json", root), "utf8").then(JSON.parse),
   ]);
-  assert.match(route, /PROMPT_VERSION/);
-  assert.match(route, /SELECT narrative_text/);
-  assert.match(route, /INSERT INTO narrative_cache/);
-  assert.match(schema, /narrativeCache/);
-  assert.equal(JSON.parse(hosting).d1, "DB");
+  assert.equal(scenarios.totals.scenarios, 360);
+  assert.equal(narratives.totals.generated_scenarios, 360);
+  assert.ok(scenarios.datasets.every((dataset) => dataset.controls.every((control) => control.values.length === 5)));
+  const scenarioKeys = new Set(scenarios.datasets.flatMap((dataset) => dataset.scenarios.map((scenario) => scenario.key)));
+  const narrativeRows = narratives.datasets.flatMap((dataset) => dataset.scenarios);
+  assert.equal(scenarioKeys.size, 360);
+  assert.equal(narrativeRows.length, 360);
+  assert.ok(narrativeRows.every((row) => scenarioKeys.has(row.key)));
+  assert.ok(narrativeRows.every((row) => row.professional_explanation.length >= 40 && row.children_story.length >= 40));
+});
+
+test("has no runtime database or narrative API", async () => {
+  const [hosting, packageJson, vite, worker] = await Promise.all([
+    readFile(new URL(".openai/hosting.json", root), "utf8"),
+    readFile(new URL("package.json", root), "utf8"),
+    readFile(new URL("vite.config.ts", root), "utf8"),
+    readFile(new URL("worker/index.ts", root), "utf8"),
+  ]);
+  assert.equal(JSON.parse(hosting).d1, null);
+  assert.doesNotMatch(packageJson, /drizzle/);
+  assert.doesNotMatch(`${vite}${worker}`, /D1Database|d1_databases|CLOUDFLARE_D1/);
+  await assert.rejects(readFile(new URL("app/api/narrative/route.ts", root), "utf8"));
 });

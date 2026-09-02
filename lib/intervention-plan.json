@@ -1,0 +1,37 @@
+{
+  "schema_version": "multi-intervention-plan-v1",
+  "description_zh": "教学用多节点 do() 控制面板。每个节点有未干预（遵从结构方程）和五个离散强制值。",
+  "datasets": {
+    "icu_septic_shock": {
+      "controls": {
+        "N": [0.05, 0.2, 0.35, 0.5, 0.6],
+        "M": [65, 75, 85, 95, 105]
+      }
+    },
+    "rice_nitrogen": {
+      "controls": {
+        "N": [100, 160, 220, 270, 320],
+        "I": [0, 40, 80, 120, 160]
+      }
+    },
+    "monetary_policy": {
+      "controls": {
+        "R": [0.5, 2, 3.5, 5.4, 6.5],
+        "L": [2.5, 4, 5.5, 7, 8.5]
+      }
+    },
+    "tutoring_education": {
+      "controls": {
+        "T": [0, 5, 10, 15, 20],
+        "S": [5, 8, 11, 14, 17],
+        "H": [6, 6.75, 7.5, 8.25, 9]
+      }
+    },
+    "supply_chain_bullwhip": {
+      "controls": {
+        "S": [0, 3, 6, 9, 12],
+        "O": [700, 850, 1000, 1150, 1300]
+      }
+    }
+  }
+}

@@ -1,36 +1,34 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { formatValue, getDataset, models, type Dataset, type ModelNode } from "../lib/causal-engine";
 import {
-  buildDeterministicNarrative,
-  formatValue,
-  getDataset,
-  models,
-  simulate,
-  type Dataset,
-  type ModelNode,
-} from "../lib/causal-engine";
+  getStaticDataset,
+  getStaticNarrative,
+  getStaticScenario,
+  getStoryBible,
+  staticTotals,
+  type StaticScenario,
+} from "../lib/static-experience";
 
-type NarrativeState = {
-  text: string;
-  cache: "idle" | "loading" | "hit" | "miss" | "error";
-  provider?: string;
-};
+type Assignments = Record<string, number | null>;
+type NarrativeMode = "professional" | "story";
 
-function preferredOption(node: ModelNode) {
-  return node.discrete_options.find((option) => option.kind === "recommended")
-    ?? node.discrete_options.find((option) => option.kind === "high")
-    ?? node.discrete_options[0];
+function naturalAssignments(datasetId: string): Assignments {
+  const dataset = getStaticDataset(datasetId);
+  return Object.fromEntries(dataset.controls.map((control) => [control.node_id, null]));
 }
 
-function Graph({ dataset, result, onSelect, selectedId }: {
+function Graph({ dataset, scenario, focusedNodeId, onSelect }: {
   dataset: Dataset;
-  result: ReturnType<typeof simulate>;
+  scenario: StaticScenario;
+  focusedNodeId: string | null;
   onSelect: (node: ModelNode) => void;
-  selectedId: string;
 }) {
-  const changed = new Set(result.changedNodeIds);
-  const activeEdges = new Set(result.affectedEdgeKeys);
+  const baseline = Object.fromEntries(dataset.nodes.map((node) => [node.id, node.reference_value]));
+  const changed = new Set(scenario.changed_node_ids);
+  const directlySet = new Set(scenario.interventions.map((item) => item.node_id));
+  const activeEdges = new Set(scenario.affected_edge_keys);
   const positions = dataset.layout;
 
   return (
@@ -58,14 +56,17 @@ function Graph({ dataset, result, onSelect, selectedId }: {
       {dataset.nodes.map((node) => {
         const position = positions[node.id];
         if (!position) return null;
-        const baseline = result.baseline[node.id];
-        const value = result.values[node.id];
-        const delta = value - baseline;
-        const state = node.id === selectedId ? "selected" : changed.has(node.id) ? (delta >= 0 ? "up" : "down") : "stable";
+        const value = scenario.values[node.id];
+        const delta = value - baseline[node.id];
+        const state = directlySet.has(node.id)
+          ? "selected"
+          : changed.has(node.id)
+            ? (delta >= 0 ? "up" : "down")
+            : "stable";
         return (
           <g
             key={node.id}
-            className={`graph-node ${state} ${node.intervenable ? "clickable" : ""} ${node.latent ? "latent" : ""}`}
+            className={`graph-node ${state} ${node.intervenable ? "clickable" : ""} ${node.latent ? "latent" : ""} ${focusedNodeId === node.id ? "focused" : ""}`}
             transform={`translate(${position[0] - 76}, ${position[1] - 30})`}
             onClick={() => node.intervenable && onSelect(node)}
             onKeyDown={(event) => {
@@ -73,7 +74,7 @@ function Graph({ dataset, result, onSelect, selectedId }: {
             }}
             role={node.intervenable ? "button" : undefined}
             tabIndex={node.intervenable ? 0 : undefined}
-            aria-label={node.intervenable ? `选择干预节点：${node.label_zh}` : undefined}
+            aria-label={node.intervenable ? `定位设置项：${node.label_zh}` : undefined}
           >
             <rect width="152" height="60" rx="14" />
             <text className="node-label" x="76" y="24">{node.label_zh.length > 11 ? `${node.label_zh.slice(0, 10)}…` : node.label_zh}</text>
@@ -89,82 +90,41 @@ function Graph({ dataset, result, onSelect, selectedId }: {
 
 export function Explorer() {
   const [datasetId, setDatasetId] = useState(models.datasets[0].dataset_id);
+  const [assignments, setAssignments] = useState<Assignments>(() => naturalAssignments(models.datasets[0].dataset_id));
+  const [narrativeMode, setNarrativeMode] = useState<NarrativeMode>("professional");
+  const [focusedNodeId, setFocusedNodeId] = useState<string | null>(null);
   const dataset = getDataset(datasetId);
-  const intervenableNodes = dataset.nodes.filter((node) => node.intervenable);
-  const [nodeId, setNodeId] = useState(intervenableNodes[0].id);
-  const selectedNode = dataset.nodes.find((node) => node.id === nodeId) ?? intervenableNodes[0];
-  const [optionValue, setOptionValue] = useState(preferredOption(selectedNode).value);
-  const result = useMemo(
-    () => simulate(dataset, selectedNode.id, optionValue),
-    [dataset, selectedNode, optionValue],
-  );
-  const [narrative, setNarrative] = useState<NarrativeState>({
-    text: buildDeterministicNarrative(dataset, result),
-    cache: "idle",
-  });
+  const staticDataset = getStaticDataset(datasetId);
+  const scenario = useMemo(() => getStaticScenario(staticDataset, assignments), [staticDataset, assignments]);
+  const narrative = getStaticNarrative(scenario.key);
+  const storyBible = getStoryBible(datasetId);
+  const directlySet = new Set(scenario.interventions.map((item) => item.node_id));
+  const activeInterventions = scenario.interventions.length;
+  const changedRows = scenario.changed_node_ids.map((id) => dataset.nodes.find((node) => node.id === id)!);
 
   function changeDataset(nextId: string) {
-    const nextDataset = getDataset(nextId);
-    const nextNode = nextDataset.nodes.find((node) => node.intervenable)!;
-    const nextValue = preferredOption(nextNode).value;
-    const nextResult = simulate(nextDataset, nextNode.id, nextValue);
     setDatasetId(nextId);
-    setNodeId(nextNode.id);
-    setOptionValue(nextValue);
-    setNarrative({ text: buildDeterministicNarrative(nextDataset, nextResult), cache: "idle" });
+    setAssignments(naturalAssignments(nextId));
+    setFocusedNodeId(null);
   }
 
-  function selectNode(node: ModelNode) {
-    const nextValue = preferredOption(node).value;
-    const nextResult = simulate(dataset, node.id, nextValue);
-    setNodeId(node.id);
-    setOptionValue(nextValue);
-    setNarrative({ text: buildDeterministicNarrative(dataset, nextResult), cache: "idle" });
+  function selectValue(nodeId: string, value: number | null) {
+    setFocusedNodeId(nodeId);
+    setAssignments((current) => ({ ...current, [nodeId]: value }));
   }
-
-  function selectValue(value: number) {
-    const nextResult = simulate(dataset, selectedNode.id, value);
-    setOptionValue(value);
-    setNarrative({ text: buildDeterministicNarrative(dataset, nextResult), cache: "idle" });
-  }
-
-  async function requestNarrative() {
-    setNarrative((current) => ({ ...current, cache: "loading" }));
-    try {
-      const response = await fetch("/api/narrative", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          datasetId: dataset.dataset_id,
-          interventionNode: selectedNode.id,
-          interventionValue: optionValue,
-        }),
-      });
-      const payload = await response.json() as { narrative?: string; cache?: "hit" | "miss"; provider?: string; error?: string };
-      if (!response.ok || !payload.narrative) throw new Error(payload.error ?? "叙事生成失败");
-      setNarrative({ text: payload.narrative, cache: payload.cache ?? "miss", provider: payload.provider });
-    } catch (error) {
-      setNarrative({
-        text: `${buildDeterministicNarrative(dataset, result)}（当前为本地模板；部署后可连接AI与D1缓存。）`,
-        cache: "error",
-      });
-    }
-  }
-
-  const changedRows = result.changedNodeIds.map((id) => dataset.nodes.find((node) => node.id === id)!);
 
   return (
     <main>
       <header className="site-header">
         <div>
-          <p className="eyebrow">CAUSAL NARRATIVE LAB · RESEARCH DEMO</p>
-          <h1>看见一次干预，如何沿因果链条传播</h1>
-          <p className="lede">选择一个离散情景，观察模型重新计算下游结果，再用受约束的叙事解释这条变化路径。</p>
+          <p className="eyebrow">CAUSAL NARRATIVE LAB · STATIC EDITION</p>
+          <h1>同时改变多个选择，看故事走向哪里</h1>
+          <p className="lede">每个节点都可以保持自然变化，或选择五档固定值。所有组合、计算结果和双版本叙事均已离线生成，页面切换时直接读取。</p>
         </div>
         <div className="model-stamp">
-          <span>模型来源</span>
-          <strong>偏差考点版 v2</strong>
-          <small>{models.totals.datasets} 个数据集 · {models.totals.nodes} 节点 · {models.totals.edges} 条边</small>
+          <span>静态情景库</span>
+          <strong>{staticTotals.scenarios} 个分支</strong>
+          <small>{models.totals.datasets} 个数据集 · 无后端请求 · 无数据库</small>
         </div>
       </header>
 
@@ -180,37 +140,45 @@ export function Explorer() {
         <aside className="panel controls-panel">
           <div className="panel-heading">
             <span className="step-number">01</span>
-            <div><h2>设置干预</h2><p>图中带圆点的节点可以点击。</p></div>
-          </div>
-          <label className="field-label" htmlFor="node-select">干预节点</label>
-          <select id="node-select" value={selectedNode.id} onChange={(event) => selectNode(dataset.nodes.find((node) => node.id === event.target.value)!)}>
-            {intervenableNodes.map((node) => <option key={node.id} value={node.id}>{node.label_zh}</option>)}
-          </select>
-
-          <div className="baseline-card">
-            <span>当前基线</span>
-            <strong>{formatValue(selectedNode, selectedNode.reference_value)}</strong>
+            <div><h2>组合多个选择</h2><p>{activeInterventions ? `已主动设置 ${activeInterventions} 个节点` : "当前全部随祖先节点自然变化"}</p></div>
           </div>
 
-          <span className="field-label">离散情景值</span>
-          <div className="option-list">
-            {selectedNode.discrete_options.map((option) => (
-              <button key={option.value} className={option.value === optionValue ? "selected" : ""} onClick={() => selectValue(option.value)}>
-                <span>{option.label}</span>
-                <strong>{formatValue(selectedNode, option.value)}</strong>
-              </button>
-            ))}
+          <div className="multi-control-list">
+            {staticDataset.controls.map((control) => {
+              const node = dataset.nodes.find((item) => item.id === control.node_id)!;
+              const selected = assignments[control.node_id];
+              return (
+                <section id={`control-${node.id}`} key={node.id} className={`control-card ${focusedNodeId === node.id ? "focused" : ""}`}>
+                  <div className="control-title">
+                    <div><strong>{node.label_zh}</strong><small>{node.label_en}</small></div>
+                    <span>{selected === null ? "自然变化" : formatValue(node, selected)}</span>
+                  </div>
+                  <div className="value-grid" role="group" aria-label={`${node.label_zh}取值`}>
+                    <button className={selected === null ? "selected natural" : "natural"} onClick={() => selectValue(node.id, null)}>
+                      <span>自然</span><small>不主动设置</small>
+                    </button>
+                    {control.values.map((value, index) => (
+                      <button key={value} className={selected === value ? "selected" : ""} onClick={() => selectValue(node.id, value)}>
+                        <span>档位 {index + 1}</span><small>{formatValue(node, value)}</small>
+                      </button>
+                    ))}
+                  </div>
+                </section>
+              );
+            })}
           </div>
-          <p className="cost-note">只允许这些预设值，因此每一种结果都拥有稳定缓存键，最多调用AI一次。</p>
+          <button className="reset-action" onClick={() => setAssignments(naturalAssignments(datasetId))}>全部恢复自然变化</button>
+          <p className="cost-note">“自然”不是固定在基线值：当祖先节点改变时，它会继续按图中的关系重新变化。</p>
         </aside>
 
         <section className="panel graph-panel">
           <div className="panel-heading graph-heading">
             <span className="step-number">02</span>
             <div><h2>{dataset.title_zh}</h2><p>{dataset.domain}</p></div>
-            <div className="legend"><span className="up-dot" />增加 <span className="down-dot" />减少 <span className="selected-dot" />直接干预</div>
+            <div className="legend"><span className="up-dot" />增加 <span className="down-dot" />减少 <span className="selected-dot" />主动设置</div>
           </div>
-          <Graph dataset={dataset} result={result} selectedId={selectedNode.id} onSelect={selectNode} />
+          <Graph dataset={dataset} scenario={scenario} focusedNodeId={focusedNodeId} onSelect={(node) => setFocusedNodeId(node.id)} />
+          <div className="scenario-key"><span>当前分支</span><code>{scenario.key}</code></div>
           <div className="bias-strip" aria-label="本图偏差考点">
             {(dataset.bias_points ?? []).map((point) => (
               <details key={point.name}>
@@ -225,38 +193,35 @@ export function Explorer() {
         <aside className="panel narrative-panel">
           <div className="panel-heading">
             <span className="step-number">03</span>
-            <div><h2>因果叙事</h2><p>AI只解释模型已计算的节点与路径。</p></div>
+            <div><h2>这一条故事线</h2><p>{storyBible.title} · {storyBible.protagonist}</p></div>
           </div>
-          <div className="cache-status">
-            <span className={`status-light ${narrative.cache}`} />
-            {narrative.cache === "hit" && "数据库命中 · 未调用AI"}
-            {narrative.cache === "miss" && `首次生成 · 已写入数据库${narrative.provider ? ` · ${narrative.provider}` : ""}`}
-            {narrative.cache === "loading" && "正在查询缓存…"}
-            {narrative.cache === "error" && "本地模板预览"}
-            {narrative.cache === "idle" && "尚未请求 · 当前为确定性预览"}
+          <div className="static-status"><span className="status-light hit" />离线内容已就绪 · 切换即时显示</div>
+          <div className="narrative-tabs" role="tablist" aria-label="叙事版本">
+            <button role="tab" aria-selected={narrativeMode === "professional"} className={narrativeMode === "professional" ? "active" : ""} onClick={() => setNarrativeMode("professional")}>专业说明</button>
+            <button role="tab" aria-selected={narrativeMode === "story"} className={narrativeMode === "story" ? "active" : ""} onClick={() => setNarrativeMode("story")}>生动故事</button>
           </div>
-          <article className="story-card">
-            <span className="ai-label">AI生成内容 / 模型模拟</span>
-            <p>{narrative.text}</p>
+          <article className={`story-card ${narrativeMode}`}>
+            <span className="ai-label">{narrativeMode === "professional" ? "专业说明" : storyBible.title}</span>
+            <p>{narrativeMode === "professional" ? narrative.professional_explanation : narrative.children_story}</p>
           </article>
-          <button className="primary-action" onClick={requestNarrative} disabled={narrative.cache === "loading"}>
-            {narrative.cache === "loading" ? "查询中…" : "生成或读取叙事"}
-          </button>
-          <p className="privacy-note">相同模型版本、节点和值会返回同一条已保存叙事。不会在拖动或切换时自动消耗API。</p>
+          <p className="privacy-note">本页不会发送任何网络生成请求；当前内容来自预先完成的 DeepSeek 离线批处理。</p>
         </aside>
       </section>
 
       <section className="results-section">
-        <div className="results-title"><span className="step-number">04</span><div><h2>干预前后对照</h2><p>只列出本次发生变化的节点。</p></div></div>
-        <div className="results-table" role="table" aria-label="干预结果对照">
-          <div className="result-row table-header" role="row"><span>变量</span><span>干预前</span><span>干预后</span><span>变化量</span></div>
+        <div className="results-title"><span className="step-number">04</span><div><h2>情景前后对照</h2><p>同时考虑所有主动设置，并列出相对基线发生变化的节点。</p></div></div>
+        <div className="results-table" role="table" aria-label="情景结果对照">
+          <div className="result-row table-header" role="row"><span>变量</span><span>参考基线</span><span>当前情景</span><span>变化量</span></div>
+          {changedRows.length === 0 && <p className="empty-result">当前是自然基线，没有节点偏离参考值。</p>}
           {changedRows.map((node) => {
-            const delta = result.values[node.id] - result.baseline[node.id];
+            const before = node.reference_value;
+            const after = scenario.values[node.id];
+            const delta = after - before;
             return (
               <div className="result-row" role="row" key={node.id}>
-                <strong>{node.label_zh}<small>{node.label_en}</small></strong>
-                <span>{formatValue(node, result.baseline[node.id])}</span>
-                <span>{formatValue(node, result.values[node.id])}</span>
+                <strong>{node.label_zh}<small>{directlySet.has(node.id) ? "主动设置" : node.label_en}</small></strong>
+                <span>{formatValue(node, before)}</span>
+                <span>{formatValue(node, after)}</span>
                 <span className={delta >= 0 ? "positive" : "negative"}>{delta >= 0 ? "+" : ""}{delta.toFixed(node.decimals)} {node.unit}</span>
               </div>
             );
@@ -265,8 +230,8 @@ export function Explorer() {
       </section>
 
       <footer>
-        <p>研究原型 · 所有结果均来自结构因果模型的确定性计算，不代表现实预测、诊断或决策建议。</p>
-        <p className="mono">{models.model_version}</p>
+        <p>CoNS Explorer · 偏差考点版 v2 · 静态多节点情景实验</p>
+        <p className="mono">{models.model_version} · {scenario.key}</p>
       </footer>
     </main>
   );
