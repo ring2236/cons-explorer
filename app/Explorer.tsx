@@ -7,7 +7,6 @@ import {
   getStaticNarrative,
   getStaticScenario,
   getStoryBible,
-  staticTotals,
   type StaticScenario,
 } from "../lib/static-experience";
 
@@ -17,6 +16,77 @@ type NarrativeMode = "professional" | "story";
 function naturalAssignments(datasetId: string): Assignments {
   const dataset = getStaticDataset(datasetId);
   return Object.fromEntries(dataset.controls.map((control) => [control.node_id, null]));
+}
+
+type Edge = Dataset["edges"][number];
+type ConnectionSide = "top" | "right" | "bottom" | "left";
+
+function connectionSide(source: [number, number], target: [number, number], atSource: boolean): ConnectionSide {
+  const dx = target[0] - source[0];
+  const dy = target[1] - source[1];
+  if (Math.abs(dy) < 90 && Math.abs(dx) > Math.abs(dy)) {
+    if (atSource) return dx >= 0 ? "right" : "left";
+    return dx >= 0 ? "left" : "right";
+  }
+  if (atSource) return dy >= 0 ? "bottom" : "top";
+  return dy >= 0 ? "top" : "bottom";
+}
+
+function edgeKey(edge: Edge) {
+  return `${edge.source}->${edge.target}`;
+}
+
+function portOffset(dataset: Dataset, edge: Edge, nodeId: string, side: ConnectionSide, atSource: boolean): number {
+  const positions = dataset.layout;
+  const siblings = dataset.edges
+    .filter((candidate) => {
+      const candidateNodeId = atSource ? candidate.source : candidate.target;
+      if (candidateNodeId !== nodeId) return false;
+      const source = positions[candidate.source];
+      const target = positions[candidate.target];
+      return source && target && connectionSide(source, target, atSource) === side;
+    })
+    .sort((a, b) => {
+      const aOther = positions[atSource ? a.target : a.source];
+      const bOther = positions[atSource ? b.target : b.source];
+      const axis = side === "top" || side === "bottom" ? 0 : 1;
+      return aOther[axis] - bOther[axis] || edgeKey(a).localeCompare(edgeKey(b));
+    });
+  if (siblings.length <= 1) return 0;
+  const index = siblings.findIndex((candidate) => edgeKey(candidate) === edgeKey(edge));
+  const span = side === "top" || side === "bottom" ? 104 : 34;
+  return -span / 2 + (span * index) / (siblings.length - 1);
+}
+
+function connectionPoint(position: [number, number], side: ConnectionSide, offset: number, gap: number): [number, number] {
+  switch (side) {
+    case "top": return [position[0] + offset, position[1] - 30 - gap];
+    case "right": return [position[0] + 76 + gap, position[1] + offset];
+    case "bottom": return [position[0] + offset, position[1] + 30 + gap];
+    case "left": return [position[0] - 76 - gap, position[1] + offset];
+  }
+}
+
+function routedEdgePath(dataset: Dataset, edge: Edge): string {
+  const sourcePosition = dataset.layout[edge.source];
+  const targetPosition = dataset.layout[edge.target];
+  const sourceSide = connectionSide(sourcePosition, targetPosition, true);
+  const targetSide = connectionSide(sourcePosition, targetPosition, false);
+  const sourceOffset = portOffset(dataset, edge, edge.source, sourceSide, true);
+  const targetOffset = portOffset(dataset, edge, edge.target, targetSide, false);
+  const start = connectionPoint(sourcePosition, sourceSide, sourceOffset, 3);
+  const end = connectionPoint(targetPosition, targetSide, targetOffset, 9);
+  const horizontal = sourceSide === "left" || sourceSide === "right";
+
+  if (horizontal) {
+    const direction = sourceSide === "right" ? 1 : -1;
+    const bend = Math.min(150, Math.max(48, Math.abs(end[0] - start[0]) * 0.45));
+    return `M ${start[0]} ${start[1]} C ${start[0] + direction * bend} ${start[1]}, ${end[0] - direction * bend} ${end[1]}, ${end[0]} ${end[1]}`;
+  }
+
+  const direction = sourceSide === "bottom" ? 1 : -1;
+  const bend = Math.min(145, Math.max(48, Math.abs(end[1] - start[1]) * 0.42));
+  return `M ${start[0]} ${start[1]} C ${start[0]} ${start[1] + direction * bend}, ${end[0]} ${end[1] - direction * bend}, ${end[0]} ${end[1]}`;
 }
 
 function Graph({ dataset, scenario, focusedNodeId, onSelect }: {
@@ -30,27 +100,26 @@ function Graph({ dataset, scenario, focusedNodeId, onSelect }: {
   const directlySet = new Set(scenario.interventions.map((item) => item.node_id));
   const activeEdges = new Set(scenario.affected_edge_keys);
   const positions = dataset.layout;
+  const routedEdges = [...dataset.edges].sort((a, b) => Number(activeEdges.has(edgeKey(a))) - Number(activeEdges.has(edgeKey(b))));
 
   return (
     <svg className="causal-graph" viewBox="0 0 1000 620" role="img" aria-label={`${dataset.title_zh}因果图`}>
       <defs>
-        <marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
-          <path d="M0,0 L8,4 L0,8 Z" fill="currentColor" />
+        <marker id="arrow-neutral" viewBox="0 0 10 10" markerWidth="10" markerHeight="10" refX="9.5" refY="5" orient="auto" markerUnits="userSpaceOnUse">
+          <path d="M0,0 L10,5 L0,10 Z" fill="#8e9b96" />
+        </marker>
+        <marker id="arrow-active" viewBox="0 0 10 10" markerWidth="11" markerHeight="11" refX="9.5" refY="5" orient="auto" markerUnits="userSpaceOnUse">
+          <path d="M0,0 L10,5 L0,10 Z" fill="#087f6b" />
         </marker>
       </defs>
-      {dataset.edges.map((edge) => {
-        const source = positions[edge.source];
-        const target = positions[edge.target];
-        if (!source || !target) return null;
+      {routedEdges.map((edge) => {
         const active = activeEdges.has(`${edge.source}->${edge.target}`);
-        const midY = source[1] + (target[1] - source[1]) * 0.5;
+        const path = routedEdgePath(dataset, edge);
         return (
-          <path
-            key={`${edge.source}-${edge.target}`}
-            className={`graph-edge ${active ? "active" : ""}`}
-            d={`M ${source[0]} ${source[1] + 31} C ${source[0]} ${midY}, ${target[0]} ${midY}, ${target[0]} ${target[1] - 31}`}
-            markerEnd="url(#arrow)"
-          />
+          <g key={`${edge.source}-${edge.target}`} className="graph-edge-group">
+            <path className={`graph-edge-halo ${active ? "active" : ""}`} d={path} />
+            <path className={`graph-edge ${active ? "active" : ""}`} d={path} markerEnd={`url(#arrow-${active ? "active" : "neutral"})`} />
+          </g>
         );
       })}
       {dataset.nodes.map((node) => {
@@ -117,14 +186,8 @@ export function Explorer() {
     <main>
       <header className="site-header">
         <div>
-          <p className="eyebrow">CAUSAL NARRATIVE LAB · STATIC EDITION</p>
           <h1>同时改变多个选择，看故事走向哪里</h1>
-          <p className="lede">每个节点都可以保持自然变化，或选择五档固定值。所有组合、计算结果和双版本叙事均已离线生成，页面切换时直接读取。</p>
-        </div>
-        <div className="model-stamp">
-          <span>静态情景库</span>
-          <strong>{staticTotals.scenarios} 个分支</strong>
-          <small>{models.totals.datasets} 个数据集 · 无后端请求 · 无数据库</small>
+          <p className="lede">每个节点都可以保持自然变化，或选择五档固定值。组合不同选择，观察结果如何传播，并阅读同一故事世界里的不同走向。</p>
         </div>
       </header>
 
@@ -195,7 +258,6 @@ export function Explorer() {
             <span className="step-number">03</span>
             <div><h2>这一条故事线</h2><p>{storyBible.title} · {storyBible.protagonist}</p></div>
           </div>
-          <div className="static-status"><span className="status-light hit" />离线内容已就绪 · 切换即时显示</div>
           <div className="narrative-tabs" role="tablist" aria-label="叙事版本">
             <button role="tab" aria-selected={narrativeMode === "professional"} className={narrativeMode === "professional" ? "active" : ""} onClick={() => setNarrativeMode("professional")}>专业说明</button>
             <button role="tab" aria-selected={narrativeMode === "story"} className={narrativeMode === "story" ? "active" : ""} onClick={() => setNarrativeMode("story")}>生动故事</button>
@@ -204,7 +266,6 @@ export function Explorer() {
             <span className="ai-label">{narrativeMode === "professional" ? "专业说明" : storyBible.title}</span>
             <p>{narrativeMode === "professional" ? narrative.professional_explanation : narrative.children_story}</p>
           </article>
-          <p className="privacy-note">本页不会发送任何网络生成请求；当前内容来自预先完成的 DeepSeek 离线批处理。</p>
         </aside>
       </section>
 

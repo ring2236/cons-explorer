@@ -14,7 +14,11 @@ test("ships the finished CoNS Explorer instead of the starter", async () => {
   assert.match(explorer, /组合多个选择/);
   assert.match(explorer, /专业说明/);
   assert.match(explorer, /生动故事/);
+  assert.match(explorer, /portOffset/);
+  assert.match(explorer, /markerUnits="userSpaceOnUse"/);
+  assert.match(explorer, /graph-edge-halo/);
   assert.doesNotMatch(explorer, /fetch\(|\/api\/narrative|数据库命中/);
+  assert.doesNotMatch(explorer, /CAUSAL NARRATIVE LAB|静态情景库|离线内容已就绪|DeepSeek 离线批处理/);
   assert.match(layout, /CoNS Explorer/);
   assert.doesNotMatch(`${page}${explorer}${layout}`, /codex-preview|SkeletonPreview|Your site is taking shape/);
 });
