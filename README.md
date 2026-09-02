@@ -60,3 +60,9 @@ node --test tests/rendered-html.test.mjs
 - `.openai/hosting.json` 声明 D1 绑定 `DB`
 - `db/schema.ts` 与 `drizzle/` 保存缓存表和迁移
 - `/api/narrative` 负责离散值校验、SCM复算、缓存查询和首次生成
+
+### 直接部署到自己的 Cloudflare Workers
+
+在 Workers Builds 中设置构建命令 `npm run build` 和部署命令 `npx wrangler deploy`。未配置 D1 时，网站仍可公开运行，叙事接口会使用确定性演示结果。
+
+如需启用 D1 缓存，先创建 D1 数据库，然后在 Workers 的 **Settings → Build → Build variables** 添加非敏感变量 `CLOUDFLARE_D1_DATABASE_ID`，值为该数据库 ID；重新部署后绑定名会是 `DB`。
