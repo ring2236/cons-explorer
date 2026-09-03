@@ -14,6 +14,9 @@
     "narratives:bibles": "node scripts/generate-static-narratives.mjs --bibles-only",
     "narratives:bibles:plan": "node scripts/generate-static-narratives.mjs --bibles-only --dry-run",
     "narratives:generate": "node scripts/generate-static-narratives.mjs",
+    "narratives:v2:plan": "NARRATIVE_VERSION=v2 node scripts/generate-static-narratives.mjs --dry-run",
+    "narratives:v2:generate": "NARRATIVE_VERSION=v2 node scripts/generate-static-narratives.mjs",
+    "narratives:v2:validate": "node scripts/validate-static-narratives-v2.mjs",
     "scenarios:generate": "node scripts/generate-static-scenarios.mjs",
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next"
   },
