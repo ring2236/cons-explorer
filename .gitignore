@@ -41,3 +41,6 @@ next-env.d.ts
 /.wrangler/
 /outputs/
 /work/
+
+# temporary narrative review samples
+/lib/narratives-v3.samples.generated.json

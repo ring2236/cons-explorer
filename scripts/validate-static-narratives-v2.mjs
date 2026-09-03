@@ -1,17 +1,34 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
-const outputPath = resolve(process.env.NARRATIVES_V2_PATH ?? "lib/narratives-v2.generated.json");
+const narrativeVersion = process.env.NARRATIVE_VERSION ?? "v2";
+const validationConfigs = {
+  v2: {
+    path: "lib/narratives-v2.generated.json",
+    schema: "static-narratives-full-graph-v2",
+    prompt: "full-causal-story-v2",
+    minimumStoryLength: 450,
+  },
+  v3: {
+    path: "lib/narratives-v3.generated.json",
+    schema: "static-narratives-causal-explanation-v3",
+    prompt: "causal-explanation-story-v3",
+    minimumStoryLength: 220,
+  },
+};
+const validationConfig = validationConfigs[narrativeVersion];
+if (!validationConfig) throw new Error(`Unsupported NARRATIVE_VERSION: ${narrativeVersion}`);
+const outputPath = resolve(process.env.NARRATIVES_PATH ?? process.env.NARRATIVES_V2_PATH ?? validationConfig.path);
 const output = JSON.parse(readFileSync(outputPath, "utf8"));
 const scenarios = JSON.parse(readFileSync(new URL("../lib/scenarios.generated.json", import.meta.url), "utf8"));
 const models = JSON.parse(readFileSync(new URL("../lib/models.generated.json", import.meta.url), "utf8"));
 const modelById = new Map(models.datasets.map((dataset) => [dataset.dataset_id, dataset]));
 const expectedScenarioKeys = new Set(scenarios.datasets.flatMap((dataset) => dataset.scenarios.map((scenario) => scenario.key)));
 
-if (output.schema_version !== "static-narratives-full-graph-v2") {
+if (output.schema_version !== validationConfig.schema) {
   throw new Error(`Unexpected schema_version: ${output.schema_version}`);
 }
-if (output.prompt_version !== "full-causal-story-v2") {
+if (output.prompt_version !== validationConfig.prompt) {
   throw new Error(`Unexpected prompt_version: ${output.prompt_version}`);
 }
 
@@ -31,7 +48,7 @@ for (const row of generatedRows) {
   if (typeof row.professional_explanation !== "string" || row.professional_explanation.length < 250) {
     throw new Error(`${row.key}: professional_explanation is too short`);
   }
-  if (typeof row.children_story !== "string" || row.children_story.length < 450) {
+  if (typeof row.children_story !== "string" || row.children_story.length < validationConfig.minimumStoryLength) {
     throw new Error(`${row.key}: children_story is too short`);
   }
   for (const field of ["professional", "children_story"]) {
@@ -45,4 +62,4 @@ for (const row of generatedRows) {
   }
 }
 
-console.log(`Validated ${generatedRows.length} v2 narratives with complete professional and story edge coverage.`);
+console.log(`Validated ${generatedRows.length} ${narrativeVersion} narratives with complete professional and story edge coverage.`);

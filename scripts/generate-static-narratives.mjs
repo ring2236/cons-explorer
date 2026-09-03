@@ -7,19 +7,47 @@ const dryRun = args.has("--dry-run");
 const apiKey = process.env.DEEPSEEK_API_KEY;
 const model = process.env.DEEPSEEK_MODEL ?? "deepseek-v4-flash";
 const narrativeVersion = process.env.NARRATIVE_VERSION ?? "v1";
-if (!new Set(["v1", "v2"]).has(narrativeVersion)) throw new Error(`Unsupported NARRATIVE_VERSION: ${narrativeVersion}`);
-const fullGraphNarratives = narrativeVersion === "v2";
+if (!new Set(["v1", "v2", "v3"]).has(narrativeVersion)) throw new Error(`Unsupported NARRATIVE_VERSION: ${narrativeVersion}`);
+const fullGraphNarratives = narrativeVersion === "v2" || narrativeVersion === "v3";
+const causalExplanationStories = narrativeVersion === "v3";
 const batchSize = Number(process.env.NARRATIVE_BATCH_SIZE ?? 1);
 const maxApiAttempts = Number(process.env.DEEPSEEK_MAX_ATTEMPTS ?? 3);
 const requestTimeoutMs = Number(process.env.DEEPSEEK_TIMEOUT_MS ?? 180000);
 const apiBase = process.env.DEEPSEEK_BASE_URL ?? "https://api.deepseek.com";
 const biblesPath = resolve(process.env.STORY_BIBLES_PATH ?? "lib/story-bibles.generated.json");
-const outputPath = resolve(process.env.NARRATIVES_OUTPUT_PATH ?? (fullGraphNarratives
-  ? "lib/narratives-v2.generated.json"
-  : "lib/narratives.generated.json"));
+const outputPath = resolve(process.env.NARRATIVES_OUTPUT_PATH ?? (causalExplanationStories
+  ? "lib/narratives-v3.generated.json"
+  : fullGraphNarratives
+    ? "lib/narratives-v2.generated.json"
+    : "lib/narratives.generated.json"));
 const scenarios = JSON.parse(readFileSync(new URL("../lib/scenarios.generated.json", import.meta.url), "utf8"));
 const models = JSON.parse(readFileSync(new URL("../lib/models.generated.json", import.meta.url), "utf8"));
-const promptVersion = fullGraphNarratives ? "full-causal-story-v2" : "parallel-short-story-v1";
+const promptVersion = causalExplanationStories
+  ? "causal-explanation-story-v3"
+  : fullGraphNarratives
+    ? "full-causal-story-v2"
+    : "parallel-short-story-v1";
+const requestedScenarioKeys = new Set(
+  (process.env.NARRATIVE_SAMPLE_KEYS ?? "")
+    .split(",")
+    .map((key) => key.trim())
+    .filter(Boolean),
+);
+
+const narrativeDatasets = scenarios.datasets
+  .map((dataset) => ({
+    ...dataset,
+    scenarios: requestedScenarioKeys.size
+      ? dataset.scenarios.filter((scenario) => requestedScenarioKeys.has(scenario.key))
+      : dataset.scenarios,
+  }))
+  .filter((dataset) => dataset.scenarios.length > 0);
+
+if (requestedScenarioKeys.size) {
+  const foundKeys = new Set(narrativeDatasets.flatMap((dataset) => dataset.scenarios.map((scenario) => scenario.key)));
+  const missingKeys = [...requestedScenarioKeys].filter((key) => !foundKeys.has(key));
+  if (missingKeys.length) throw new Error(`Unknown NARRATIVE_SAMPLE_KEYS: ${missingKeys.join(", ")}`);
+}
 
 const worldSeeds = {
   icu_septic_shock: {
@@ -117,6 +145,22 @@ function fullCausalStructure(datasetId) {
   const nodes = nodeMapFor(datasetId);
   return {
     instruction: "下面是本数据集的完整有向关系清单。两个文本版本都必须逐条覆盖，不得只写本情景中发生数值变化的关系。",
+    topological_order: dataset.topological_order,
+    root_nodes: dataset.nodes
+      .filter((node) => node.parents.length === 0)
+      .map((node) => ({ id: node.id, label_zh: node.label_zh })),
+    leaf_nodes: dataset.nodes
+      .filter((node) => node.children.length === 0)
+      .map((node) => ({ id: node.id, label_zh: node.label_zh })),
+    nodes: dataset.nodes.map((node) => ({
+      id: node.id,
+      label_zh: node.label_zh,
+      role: node.role,
+      unit: node.unit,
+      parents: node.parents,
+      children: node.children,
+      mechanism: node.mechanism.formula_text,
+    })),
     edge_count: dataset.edges.length,
     edges: dataset.edges.map((edge) => ({
       key: `${edge.source}->${edge.target}`,
@@ -349,38 +393,62 @@ const storyVariationDirectives = [
 
 function branchContext(dataset, scenario) {
   const nodes = nodeMapFor(dataset.dataset_id);
-  const scenarioIndex = dataset.scenarios.findIndex((item) => item.key === scenario.key);
+  const completeDataset = scenarios.datasets.find((item) => item.dataset_id === dataset.dataset_id);
+  const scenarioIndex = completeDataset.scenarios.findIndex((item) => item.key === scenario.key);
   return {
     branch_number: scenarioIndex + 1,
-    total_branches: dataset.scenarios.length,
+    total_branches: completeDataset.scenarios.length,
     intervention_space: dataset.controls.map((control) => ({
       node_id: control.node_id,
       label_zh: control.label_zh,
       choices: ["不主动调整，随前因自然变化", ...control.values.map((value) => formatValue(nodes.get(control.node_id), value))],
     })),
     current_branch_has_interventions: scenario.interventions.length,
-    variation_directive: storyVariationDirectives[scenarioIndex % storyVariationDirectives.length],
+    variation_directive: causalExplanationStories
+      ? "直接从当前人物面对的具体情况进入因果变化，不使用天气、光线、声音、物件或内心独白制造文学变化。"
+      : storyVariationDirectives[scenarioIndex % storyVariationDirectives.length],
   };
 }
 
 function narrativePrompt(dataset, bible, batch, recentStories = []) {
   const sourceDataset = datasetById.get(dataset.dataset_id);
   const causalStructure = fullCausalStructure(dataset.dataset_id);
+  const baselineScenario = scenarios.datasets
+    .find((item) => item.dataset_id === dataset.dataset_id)
+    .scenarios.find((item) => item.is_observational_baseline);
   if (fullGraphNarratives) {
+    const storyInstructions = causalExplanationStories
+      ? [
+          "children_story 是‘情境化因果讲解’，不是以人物塑造和环境描写为中心的短篇小说。人物只承担串联变化的作用。",
+          "children_story 必须从全部根节点和祖先因素讲起，沿完整结构依次说明中介变化，最后到达每一个叶子或结局；不能只讲主动设置节点及其发生数值变化的后代。",
+          "对于本情景没有变化的关系，也要用一句简洁的话交代它为何仍然成立、为何没有改变，或它如何继续影响当前结局。",
+          "如果某个下游节点被主动固定，先说明它在自然情况下受哪些前因影响，再明确说明本分支把它直接定在当前值，因此这些上游关系不再决定它；随后继续讲它对更下游因素的作用。",
+          "开头最多用一两句话交代人物正在面对什么问题。不要写天气、光线、声音、房间陈设、随身物件、表情、回忆、内心独白或无关对话，除非该细节直接表现输入中的因果关系。",
+          "每句话必须至少完成一项任务：交代祖先条件、解释一条直接关系、区分主动设置与自然变化、说明多条作用如何汇合，或报告最终结果。删除后不影响因果理解的句子不要写。",
+          "使用‘因为、因此、同时、但是、接着、最终’等自然连接词让读者看清逻辑。保留少量故事感，但不要设计悬念、冲突、象征物、抒情结尾或角色成长线。",
+          "可以自然使用 SOFA、MAP 等输入中已有的必要名称；对家庭SES、焦虑指数等抽象量优先翻译成家庭条件、焦虑程度等易懂表达，不要为了文学感改动含义。",
+          "不要机械罗列箭头，也不要把 professional_explanation 原文粘贴过来；要让完整因果关系成为人物所处情境中连续发生的一件事。",
+        ]
+      : [
+          "children_story 要保留旧版短篇故事的完整性，同时把专业说明表达的全部关系融入人物、环境、选择、连锁变化和结局。不能把专业说明生硬粘贴到故事末尾。",
+          "故事必须沿用 story_bible 的人物、地点、关系和语气；每条结构关系都要在故事事件中找到可辨认的对应，并保持正向或负向方向不变。",
+        ];
     return {
       system: [
-        "你是中文因果解释编辑和短篇故事作者。",
+        causalExplanationStories ? "你是擅长用简洁情境讲清完整因果链的中文编辑。" : "你是中文因果解释编辑和短篇故事作者。",
         "为当前平行情景输出 professional_explanation 和 children_story 两个完整版本。",
         "professional_explanation 不能只讲主动调整和变化路径；必须覆盖 full_causal_structure 中的每一条有向关系，包括本情景中数值没有明显变化的关系。",
         "专业说明先交代当前主动设置与自然变化，再按完整结构说明所有直接关系、方向以及它们如何汇入当前结局。只能使用输入提供的关系与数值，不得补造额外因果边。",
         "专业说明可以使用输入名称中已有的常见缩写，例如 MAP、AKI、SOFA；不要求每次重复完整中文名称，但含义必须清楚。",
-        "children_story 要保留旧版短篇故事的完整性，同时把专业说明表达的全部关系融入人物、环境、选择、连锁变化和结局。不能把专业说明生硬粘贴到故事末尾。",
-        "故事必须沿用 story_bible 的人物、地点、关系和语气；每条结构关系都要在故事事件中找到可辨认的对应，并保持正向或负向方向不变。",
+        ...storyInstructions,
+        "children_story 必须沿用 story_bible 的人物与基本世界设定，但只选取解释当前因果变化所需的最少信息。每条结构关系都要有可辨认的文字对应，并保持输入给定的方向与非线性含义。",
         "故事正文不要出现因果图、模型、变量、节点、路径、干预、指数、计算、数据集、教学、反事实等术语，也不要写虚构说明、免责声明或建议。",
         "不要杜撰输入以外的数值。可以把量翻译成自然的生活表达，但当前情景的重要数值和最终结局需要保留。",
         "coverage_professional 与 coverage_children_story 必须分别原样列出 full_causal_structure 的全部 edge key，用于程序检查，不可少项、增项或改写。",
         "当前一次只处理一个情景。严格输出 output_schema 所示的单层 JSON 对象，不要增加 scenarios 数组，不要在对象结尾追加任何括号或文字。",
-        "遵守 branch_contexts 中的叙事变化指令，并避开 recent_stories 已使用的开场句式和事件推进方式。",
+        causalExplanationStories
+          ? "遵守 branch_contexts 中的写作指令；不要为了与 recent_stories 不同而增加装饰性情节。"
+          : "遵守 branch_contexts 中的叙事变化指令，并避开 recent_stories 已使用的开场句式和事件推进方式。",
       ].join("\n"),
       user: {
         dataset_id: dataset.dataset_id,
@@ -390,7 +458,7 @@ function narrativePrompt(dataset, bible, batch, recentStories = []) {
         full_causal_structure: causalStructure,
         branch_contexts: batch.map((scenario) => ({ key: scenario.key, ...branchContext(dataset, scenario) })),
         recent_stories: recentStories,
-        baseline: summarizeScenario(dataset.dataset_id, dataset.scenarios.find((item) => item.is_observational_baseline)),
+        baseline: summarizeScenario(dataset.dataset_id, baselineScenario),
         scenarios: batch.map((scenario) => summarizeScenario(dataset.dataset_id, scenario)),
         output_schema: {
           dataset_id: "原样返回",
@@ -398,7 +466,9 @@ function narrativePrompt(dataset, bible, batch, recentStories = []) {
           coverage_professional: causalStructure.edges.map((edge) => edge.key),
           coverage_children_story: causalStructure.edges.map((edge) => edge.key),
           professional_explanation: "450-750字中文：当前设置、完整直接关系清单、关系方向、当前结局；所有边必须出现",
-          children_story: "700-1100字中文：完整短篇故事，在事件中自然体现全部关系及当前结局，不使用专业术语",
+          children_story: causalExplanationStories
+            ? "300-600字中文：以最少人物情境串联从全部祖先到全部叶子结果的完整变化；所有边必须出现，少写故事装饰"
+            : "700-1100字中文：完整短篇故事，在事件中自然体现全部关系及当前结局，不使用专业术语",
         },
       },
     };
@@ -421,7 +491,7 @@ function narrativePrompt(dataset, bible, batch, recentStories = []) {
       bias_points: sourceDataset.bias_points,
       branch_contexts: batch.map((scenario) => ({ key: scenario.key, ...branchContext(dataset, scenario) })),
       recent_stories: recentStories,
-      baseline: summarizeScenario(dataset.dataset_id, dataset.scenarios.find((item) => item.is_observational_baseline)),
+      baseline: summarizeScenario(dataset.dataset_id, baselineScenario),
       scenarios: batch.map((scenario) => summarizeScenario(dataset.dataset_id, scenario)),
       output_schema: {
         dataset_id: "原样返回",
@@ -486,7 +556,10 @@ function validateNarrativeBatch(datasetId, expectedKeys, generated) {
     }
     if (fullGraphNarratives) {
       if (item.professional_explanation.length < 250) throw new Error(`${datasetId}: ${item.key} professional_explanation is too short for full graph coverage`);
-      if (item.children_story.length < 450) throw new Error(`${datasetId}: ${item.key} children_story is too short for full graph coverage`);
+      const minimumStoryLength = causalExplanationStories ? 220 : 450;
+      if (item.children_story.length < minimumStoryLength) {
+        throw new Error(`${datasetId}: ${item.key} children_story is too short for full graph coverage (${item.children_story.length} < ${minimumStoryLength})`);
+      }
       const sourceDataset = datasetById.get(datasetId);
       const expectedEdges = sourceDataset.edges.map((edge) => `${edge.source}->${edge.target}`);
       for (const field of ["professional", "children_story"]) {
@@ -512,13 +585,28 @@ function loadBibles() {
 
 function narrativeOutput(datasets, callCount) {
   const generatedScenarioCount = datasets.reduce((sum, dataset) => sum + dataset.scenarios.length, 0);
+  const selectedScenarioCount = narrativeDatasets.reduce((sum, dataset) => sum + dataset.scenarios.length, 0);
+  const selectedInterventionCount = narrativeDatasets.reduce(
+    (sum, dataset) => sum + dataset.scenarios.filter((scenario) => scenario.interventions.length > 0).length,
+    0,
+  );
   return {
-    schema_version: fullGraphNarratives ? "static-narratives-full-graph-v2" : "static-narratives-v2",
+    schema_version: causalExplanationStories
+      ? "static-narratives-causal-explanation-v3"
+      : fullGraphNarratives
+        ? "static-narratives-full-graph-v2"
+        : "static-narratives-v2",
     narrative_version: narrativeVersion,
     model_version: scenarios.model_version,
     prompt_version: promptVersion,
     generator: { provider: "deepseek", model, batch_size: batchSize, calls: callCount, generated_at: new Date().toISOString() },
-    totals: { ...scenarios.totals, generated_scenarios: generatedScenarioCount },
+    totals: {
+      datasets: narrativeDatasets.length,
+      scenarios: selectedScenarioCount,
+      intervention_scenarios: selectedInterventionCount,
+      generated_scenarios: generatedScenarioCount,
+      ...(requestedScenarioKeys.size ? { source_scenarios: scenarios.totals.scenarios } : {}),
+    },
     datasets,
   };
 }
@@ -534,7 +622,7 @@ async function generateNarratives() {
   const completedByDataset = new Map((previous?.datasets ?? []).map((dataset) => [dataset.dataset_id, dataset]));
   const datasets = [];
   let callCount = previous?.generator?.calls ?? 0;
-  for (const dataset of scenarios.datasets) {
+  for (const dataset of narrativeDatasets) {
     const bible = bibles.get(dataset.dataset_id);
     if (!bible) throw new Error(`Missing story bible for ${dataset.dataset_id}`);
     const expectedKeys = new Set(dataset.scenarios.map((scenario) => scenario.key));
@@ -589,7 +677,7 @@ async function generateNarratives() {
         scenarios: dataset.scenarios.filter((scenario) => generatedByKey.has(scenario.key)).map((scenario) => generatedByKey.get(scenario.key)),
       };
       completedByDataset.set(dataset.dataset_id, checkpointDataset);
-      const checkpointDatasets = scenarios.datasets
+      const checkpointDatasets = narrativeDatasets
         .filter((item) => completedByDataset.has(item.dataset_id))
         .map((item) => completedByDataset.get(item.dataset_id));
       writeFileSync(outputPath, `${JSON.stringify(narrativeOutput(checkpointDatasets, callCount), null, 2)}\n`);
@@ -618,12 +706,12 @@ if (dryRun) {
     story_bible_calls: mode === "bibles" ? scenarios.datasets.length : 0,
     narrative_batch_size: batchSize,
     narrative_calls: mode === "narratives"
-      ? scenarios.datasets.reduce((sum, dataset) => sum + chunks(dataset.scenarios, batchSize).length, 0)
+      ? narrativeDatasets.reduce((sum, dataset) => sum + chunks(dataset.scenarios, batchSize).length, 0)
       : 0,
-    datasets: scenarios.datasets.map((dataset) => ({
+    datasets: (mode === "bibles" ? scenarios.datasets : narrativeDatasets).map((dataset) => ({
       dataset_id: dataset.dataset_id,
       title_zh: dataset.title_zh,
-      scenarios: dataset.scenario_count,
+      scenarios: dataset.scenarios.length,
       narrative_batches: chunks(dataset.scenarios, batchSize).length,
     })),
     outputs: { biblesPath, outputPath },
@@ -638,5 +726,5 @@ if (mode === "bibles") {
   console.log(`Wrote ${biblesPath}: ${output.datasets.length} story bibles.`);
 } else {
   const output = await generateNarratives();
-  console.log(`Wrote ${outputPath}: ${output.totals.scenarios} scenario narratives.`);
+  console.log(`Wrote ${outputPath}: ${output.totals.generated_scenarios} scenario narratives.`);
 }

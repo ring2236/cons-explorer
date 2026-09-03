@@ -34,22 +34,22 @@ test("contains the complete bias-teaching model bundle", async () => {
   assert.ok(bundle.datasets.every((item) => item.nodes.every((node) => !node.intervenable || node.discrete_options.length >= 3)));
 });
 
-test("ships all static scenarios and complete v2 narrative versions", async () => {
+test("ships all static scenarios and complete v3 narrative versions", async () => {
   const [scenarios, narratives] = await Promise.all([
     readFile(new URL("lib/scenarios.generated.json", root), "utf8").then(JSON.parse),
-    readFile(new URL("lib/narratives-v2.generated.json", root), "utf8").then(JSON.parse),
+    readFile(new URL("lib/narratives-v3.generated.json", root), "utf8").then(JSON.parse),
   ]);
   assert.equal(scenarios.totals.scenarios, 360);
   assert.equal(narratives.totals.generated_scenarios, 360);
-  assert.equal(narratives.schema_version, "static-narratives-full-graph-v2");
-  assert.equal(narratives.prompt_version, "full-causal-story-v2");
+  assert.equal(narratives.schema_version, "static-narratives-causal-explanation-v3");
+  assert.equal(narratives.prompt_version, "causal-explanation-story-v3");
   assert.ok(scenarios.datasets.every((dataset) => dataset.controls.every((control) => control.values.length === 5)));
   const scenarioKeys = new Set(scenarios.datasets.flatMap((dataset) => dataset.scenarios.map((scenario) => scenario.key)));
   const narrativeRows = narratives.datasets.flatMap((dataset) => dataset.scenarios);
   assert.equal(scenarioKeys.size, 360);
   assert.equal(narrativeRows.length, 360);
   assert.ok(narrativeRows.every((row) => scenarioKeys.has(row.key)));
-  assert.ok(narrativeRows.every((row) => row.professional_explanation.length >= 250 && row.children_story.length >= 450));
+  assert.ok(narrativeRows.every((row) => row.professional_explanation.length >= 250 && row.children_story.length >= 220));
   assert.ok(narrativeRows.every((row) => row.coverage?.professional?.length && row.coverage?.children_story?.length));
 });
 

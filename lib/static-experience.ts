@@ -1,4 +1,4 @@
-import narrativesBundle from "./narratives-v2.generated.json";
+import narrativesBundle from "./narratives-v3.generated.json";
 import scenariosBundle from "./scenarios.generated.json";
 
 export type StaticControl = {
