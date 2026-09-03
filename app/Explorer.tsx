@@ -291,7 +291,7 @@ export function Explorer() {
       </section>
 
       <footer>
-        <p>CoNS Explorer · 偏差考点版 v2 · 静态多节点情景实验</p>
+        <p>CoNS Explorer · 偏差考点版 v4 · 静态多节点情景实验</p>
         <p className="mono">{models.model_version} · {scenario.key}</p>
       </footer>
     </main>

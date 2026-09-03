@@ -15,6 +15,13 @@ const validationConfigs = {
     prompt: "causal-explanation-story-v3",
     minimumStoryLength: 220,
   },
+  v4: {
+    path: "lib/narratives-v4.generated.json",
+    schema: "static-narratives-natural-professional-v4",
+    prompt: "natural-professional-explanation-v4",
+    minimumStoryLength: 220,
+    naturalProfessional: true,
+  },
 };
 const validationConfig = validationConfigs[narrativeVersion];
 if (!validationConfig) throw new Error(`Unsupported NARRATIVE_VERSION: ${narrativeVersion}`);
@@ -24,6 +31,43 @@ const scenarios = JSON.parse(readFileSync(new URL("../lib/scenarios.generated.js
 const models = JSON.parse(readFileSync(new URL("../lib/models.generated.json", import.meta.url), "utf8"));
 const modelById = new Map(models.datasets.map((dataset) => [dataset.dataset_id, dataset]));
 const expectedScenarioKeys = new Set(scenarios.datasets.flatMap((dataset) => dataset.scenarios.map((scenario) => scenario.key)));
+const sourceV3 = validationConfig.naturalProfessional
+  ? JSON.parse(readFileSync(new URL("../lib/narratives-v3.generated.json", import.meta.url), "utf8"))
+  : null;
+const sourceV3ByKey = new Map(
+  (sourceV3?.datasets ?? []).flatMap((dataset) => dataset.scenarios.map((scenario) => [scenario.key, scenario])),
+);
+const bannedProfessionalTerms = [
+  "根节点",
+  "叶子节点",
+  "中介节点",
+  "碰撞点",
+  "节点",
+  "变量",
+  "有向边",
+  "因果边",
+  "结构方程",
+  "因果图",
+  "路径被截断",
+  "驱动被截断",
+];
+
+function escapeRegExp(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function professionalStyleViolations(dataset, text) {
+  const violations = bannedProfessionalTerms.filter((term) => text.includes(term));
+  if (text.includes("->") || text.includes("→")) violations.push("箭头表达");
+  if (/[A-Za-z][A-Za-z0-9_]*\s*=/.test(text)) violations.push("字母等式");
+  for (const nodeId of dataset.nodes.map((node) => node.id).sort((left, right) => right.length - left.length)) {
+    const idAsSubjectPattern = new RegExp(
+      `(^|[，。；：、\\s])${escapeRegExp(nodeId)}(?=(?:为|是|对|受|由|升高|降低|增加|减少|影响|促进|抑制|决定|导致|使))`,
+    );
+    if (idAsSubjectPattern.test(text)) violations.push(`内部编号 ${nodeId}`);
+  }
+  return [...new Set(violations)];
+}
 
 if (output.schema_version !== validationConfig.schema) {
   throw new Error(`Unexpected schema_version: ${output.schema_version}`);
@@ -51,6 +95,14 @@ for (const row of generatedRows) {
   if (typeof row.children_story !== "string" || row.children_story.length < validationConfig.minimumStoryLength) {
     throw new Error(`${row.key}: children_story is too short`);
   }
+  if (validationConfig.naturalProfessional) {
+    const styleViolations = professionalStyleViolations(dataset, row.professional_explanation);
+    if (styleViolations.length) {
+      throw new Error(`${row.key}: professional_explanation contains forbidden notation: ${styleViolations.join(", ")}`);
+    }
+    const sourceStory = sourceV3ByKey.get(row.key)?.children_story;
+    if (row.children_story !== sourceStory) throw new Error(`${row.key}: children_story differs from v3 source`);
+  }
   for (const field of ["professional", "children_story"]) {
     const actual = row.coverage?.[field];
     const actualSet = new Set(actual ?? []);
@@ -62,4 +114,4 @@ for (const row of generatedRows) {
   }
 }
 
-console.log(`Validated ${generatedRows.length} ${narrativeVersion} narratives with complete professional and story edge coverage.`);
+console.log(`Validated ${generatedRows.length} ${narrativeVersion} narratives with complete professional and story edge coverage${validationConfig.naturalProfessional ? ", natural professional wording, and unchanged v3 stories" : ""}.`);

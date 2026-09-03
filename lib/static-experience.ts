@@ -1,5 +1,6 @@
-import narrativesBundle from "./narratives-v3.generated.json";
+import narrativesBundle from "./narratives-v4.generated.json";
 import scenariosBundle from "./scenarios.generated.json";
+import { isActiveDataset } from "./active-datasets";
 
 export type StaticControl = {
   node_id: string;
@@ -45,14 +46,23 @@ type NarrativeDataset = {
   scenarios: StaticNarrative[];
 };
 
-const scenarioDatasets = (scenariosBundle as unknown as { datasets: StaticScenarioDataset[] }).datasets;
-const narrativeDatasets = (narrativesBundle as unknown as { datasets: NarrativeDataset[] }).datasets;
+const scenarioDatasets = (scenariosBundle as unknown as { datasets: StaticScenarioDataset[] }).datasets
+  .filter((dataset) => isActiveDataset(dataset.dataset_id));
+const narrativeDatasets = (narrativesBundle as unknown as { datasets: NarrativeDataset[] }).datasets
+  .filter((dataset) => isActiveDataset(dataset.dataset_id));
 const scenarioDatasetById = new Map(scenarioDatasets.map((dataset) => [dataset.dataset_id, dataset]));
 const narrativeDatasetById = new Map(narrativeDatasets.map((dataset) => [dataset.dataset_id, dataset]));
 const scenarioByKey = new Map(scenarioDatasets.flatMap((dataset) => dataset.scenarios.map((scenario) => [scenario.key, scenario] as const)));
 const narrativeByKey = new Map(narrativeDatasets.flatMap((dataset) => dataset.scenarios.map((narrative) => [narrative.key, narrative] as const)));
 
-export const staticTotals = scenariosBundle.totals;
+export const staticTotals = {
+  datasets: scenarioDatasets.length,
+  scenarios: scenarioDatasets.reduce((sum, dataset) => sum + dataset.scenarios.length, 0),
+  intervention_scenarios: scenarioDatasets.reduce(
+    (sum, dataset) => sum + dataset.scenarios.filter((scenario) => scenario.interventions.length > 0).length,
+    0,
+  ),
+};
 
 export function getStaticDataset(datasetId: string): StaticScenarioDataset {
   const dataset = scenarioDatasetById.get(datasetId);

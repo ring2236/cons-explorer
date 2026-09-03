@@ -1,4 +1,5 @@
 import modelBundle from "./models.generated.json";
+import { isActiveDataset } from "./active-datasets";
 
 export type DiscreteOption = {
   kind: string;
@@ -56,12 +57,24 @@ export type Dataset = {
   bias_points?: BiasPoint[];
 };
 
-export const models = modelBundle as {
+const completeModels = modelBundle as {
   model_version: string;
   source_file: string;
   source_sha256: string;
   totals: { datasets: number; nodes: number; edges: number };
   datasets: Dataset[];
+};
+
+const activeModelDatasets = completeModels.datasets.filter((dataset) => isActiveDataset(dataset.dataset_id));
+
+export const models = {
+  ...completeModels,
+  totals: {
+    datasets: activeModelDatasets.length,
+    nodes: activeModelDatasets.reduce((sum, dataset) => sum + dataset.nodes.length, 0),
+    edges: activeModelDatasets.reduce((sum, dataset) => sum + dataset.edges.length, 0),
+  },
+  datasets: activeModelDatasets,
 };
 
 export type SimulationResult = {

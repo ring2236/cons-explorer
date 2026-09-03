@@ -4,13 +4,14 @@
 
 ## 当前数据
 
-- 5 个数据集、44 个节点、65 条结构方程依赖边
+- 当前前端展示 3 个数据集：水稻氮管理、课外辅导与学业成绩、供应链牛鞭效应
+- 3 个展示数据集共 27 个节点、40 条结构方程依赖边
 - 每个数据集 2–3 个可组合设置的节点
 - 每个节点包含“自然变化”与 5 个固定值
-- 360 个静态情景，其中 355 个至少包含一次主动设置
+- 当前展示 288 个静态情景，其中 285 个至少包含一次主动设置
 - 每个情景均包含覆盖完整因果结构的专业说明和情境化因果故事
 
-模型来自 `因果图候选库_v2_偏差考点版.md`。静态情景位于 `lib/scenarios.generated.json`，当前使用的 v3 情境化因果叙事位于 `lib/narratives-v3.generated.json`。
+模型来自 `因果图候选库_v2_偏差考点版.md`。仓库仍保留 ICU 和货币政策的完整数据，当前通过 `lib/active-datasets.ts` 暂时隐藏，之后可以快速恢复。静态情景位于 `lib/scenarios.generated.json`，当前使用的 v4 叙事位于 `lib/narratives-v4.generated.json`。
 
 ## 本地运行与验证
 
@@ -35,8 +36,8 @@ npm run scenarios:generate
 
 ```bash
 npm run narratives:bibles
-npm run narratives:v3:generate
-npm run narratives:v3:validate
+npm run narratives:v4:generate
+npm run narratives:v4:validate
 ```
 
 API Key 只用于离线生成，不会进入前端构建或线上运行环境。

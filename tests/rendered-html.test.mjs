@@ -34,15 +34,23 @@ test("contains the complete bias-teaching model bundle", async () => {
   assert.ok(bundle.datasets.every((item) => item.nodes.every((node) => !node.intervenable || node.discrete_options.length >= 3)));
 });
 
-test("ships all static scenarios and complete v3 narrative versions", async () => {
+test("publishes only the three currently active datasets", async () => {
+  const activeDatasets = await readFile(new URL("lib/active-datasets.ts", root), "utf8");
+  assert.match(activeDatasets, /rice_nitrogen/);
+  assert.match(activeDatasets, /tutoring_education/);
+  assert.match(activeDatasets, /supply_chain_bullwhip/);
+  assert.doesNotMatch(activeDatasets, /icu_septic_shock|monetary_policy/);
+});
+
+test("ships all static scenarios and complete v4 narrative versions", async () => {
   const [scenarios, narratives] = await Promise.all([
     readFile(new URL("lib/scenarios.generated.json", root), "utf8").then(JSON.parse),
-    readFile(new URL("lib/narratives-v3.generated.json", root), "utf8").then(JSON.parse),
+    readFile(new URL("lib/narratives-v4.generated.json", root), "utf8").then(JSON.parse),
   ]);
   assert.equal(scenarios.totals.scenarios, 360);
   assert.equal(narratives.totals.generated_scenarios, 360);
-  assert.equal(narratives.schema_version, "static-narratives-causal-explanation-v3");
-  assert.equal(narratives.prompt_version, "causal-explanation-story-v3");
+  assert.equal(narratives.schema_version, "static-narratives-natural-professional-v4");
+  assert.equal(narratives.prompt_version, "natural-professional-explanation-v4");
   assert.ok(scenarios.datasets.every((dataset) => dataset.controls.every((control) => control.values.length === 5)));
   const scenarioKeys = new Set(scenarios.datasets.flatMap((dataset) => dataset.scenarios.map((scenario) => scenario.key)));
   const narrativeRows = narratives.datasets.flatMap((dataset) => dataset.scenarios);

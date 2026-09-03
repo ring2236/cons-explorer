@@ -22,6 +22,9 @@
     "narratives:v3:validate": "NARRATIVE_VERSION=v3 node scripts/validate-static-narratives-v2.mjs",
     "narratives:v3:samples:plan": "NARRATIVE_VERSION=v3 NARRATIVES_OUTPUT_PATH=lib/narratives-v3.samples.generated.json NARRATIVE_SAMPLE_KEYS='icu_septic_shock|N=0.2|M=natural,tutoring_education|T=15|S=14|H=6.75' node scripts/generate-static-narratives.mjs --dry-run",
     "narratives:v3:samples": "NARRATIVE_VERSION=v3 NARRATIVES_OUTPUT_PATH=lib/narratives-v3.samples.generated.json NARRATIVE_SAMPLE_KEYS='icu_septic_shock|N=0.2|M=natural,tutoring_education|T=15|S=14|H=6.75' node scripts/generate-static-narratives.mjs",
+    "narratives:v4:plan": "NARRATIVE_VERSION=v4 node scripts/generate-static-narratives.mjs --dry-run",
+    "narratives:v4:generate": "NARRATIVE_VERSION=v4 node scripts/generate-static-narratives.mjs",
+    "narratives:v4:validate": "NARRATIVE_VERSION=v4 node scripts/validate-static-narratives-v2.mjs",
     "scenarios:generate": "node scripts/generate-static-scenarios.mjs",
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next"
   },

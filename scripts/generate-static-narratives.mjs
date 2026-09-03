@@ -7,22 +7,28 @@ const dryRun = args.has("--dry-run");
 const apiKey = process.env.DEEPSEEK_API_KEY;
 const model = process.env.DEEPSEEK_MODEL ?? "deepseek-v4-flash";
 const narrativeVersion = process.env.NARRATIVE_VERSION ?? "v1";
-if (!new Set(["v1", "v2", "v3"]).has(narrativeVersion)) throw new Error(`Unsupported NARRATIVE_VERSION: ${narrativeVersion}`);
-const fullGraphNarratives = narrativeVersion === "v2" || narrativeVersion === "v3";
-const causalExplanationStories = narrativeVersion === "v3";
+if (!new Set(["v1", "v2", "v3", "v4"]).has(narrativeVersion)) throw new Error(`Unsupported NARRATIVE_VERSION: ${narrativeVersion}`);
+const professionalOnlyNarratives = narrativeVersion === "v4";
+const fullGraphNarratives = ["v2", "v3", "v4"].includes(narrativeVersion);
+const causalExplanationStories = narrativeVersion === "v3" || narrativeVersion === "v4";
 const batchSize = Number(process.env.NARRATIVE_BATCH_SIZE ?? 1);
 const maxApiAttempts = Number(process.env.DEEPSEEK_MAX_ATTEMPTS ?? 3);
 const requestTimeoutMs = Number(process.env.DEEPSEEK_TIMEOUT_MS ?? 180000);
 const apiBase = process.env.DEEPSEEK_BASE_URL ?? "https://api.deepseek.com";
 const biblesPath = resolve(process.env.STORY_BIBLES_PATH ?? "lib/story-bibles.generated.json");
-const outputPath = resolve(process.env.NARRATIVES_OUTPUT_PATH ?? (causalExplanationStories
+const outputPath = resolve(process.env.NARRATIVES_OUTPUT_PATH ?? (professionalOnlyNarratives
+  ? "lib/narratives-v4.generated.json"
+  : causalExplanationStories
   ? "lib/narratives-v3.generated.json"
   : fullGraphNarratives
     ? "lib/narratives-v2.generated.json"
     : "lib/narratives.generated.json"));
 const scenarios = JSON.parse(readFileSync(new URL("../lib/scenarios.generated.json", import.meta.url), "utf8"));
 const models = JSON.parse(readFileSync(new URL("../lib/models.generated.json", import.meta.url), "utf8"));
-const promptVersion = causalExplanationStories
+const sourceNarrativesPath = resolve(process.env.SOURCE_NARRATIVES_PATH ?? "lib/narratives-v3.generated.json");
+const promptVersion = professionalOnlyNarratives
+  ? "natural-professional-explanation-v4"
+  : causalExplanationStories
   ? "causal-explanation-story-v3"
   : fullGraphNarratives
     ? "full-causal-story-v2"
@@ -78,6 +84,24 @@ const worldSeeds = {
 };
 
 const datasetById = new Map(models.datasets.map((dataset) => [dataset.dataset_id, dataset]));
+const sourceNarrativeOutput = professionalOnlyNarratives
+  ? JSON.parse(readFileSync(sourceNarrativesPath, "utf8"))
+  : null;
+const sourceNarrativeByKey = new Map(
+  (sourceNarrativeOutput?.datasets ?? []).flatMap((dataset) => dataset.scenarios.map((scenario) => [scenario.key, scenario])),
+);
+if (professionalOnlyNarratives) {
+  if (sourceNarrativeOutput?.schema_version !== "static-narratives-causal-explanation-v3") {
+    throw new Error(`${sourceNarrativesPath} is not a complete v3 narrative file`);
+  }
+  const missingSourceStories = scenarios.datasets
+    .flatMap((dataset) => dataset.scenarios)
+    .filter((scenario) => typeof sourceNarrativeByKey.get(scenario.key)?.children_story !== "string")
+    .map((scenario) => scenario.key);
+  if (missingSourceStories.length) {
+    throw new Error(`${sourceNarrativesPath} is missing ${missingSourceStories.length} stories; first missing key: ${missingSourceStories[0]}`);
+  }
+}
 
 function chunks(items, size) {
   const result = [];
@@ -135,6 +159,36 @@ function summarizeScenario(datasetId, scenario) {
       return {
         key,
         label_zh: `${nodes.get(source).label_zh} -> ${nodes.get(target).label_zh}`,
+      };
+    }),
+  };
+}
+
+function readerFacingScenario(datasetId, scenario) {
+  const dataset = datasetById.get(datasetId);
+  const scenarioDataset = scenarios.datasets.find((item) => item.dataset_id === datasetId);
+  const nodes = nodeMapFor(datasetId);
+  const baseline = scenarioDataset.scenarios.find((item) => item.is_observational_baseline);
+  const interventionByNodeId = new Map(scenario.interventions.map((item) => [item.node_id, item]));
+  return {
+    scenario_key_for_json_only: scenario.key,
+    observational_baseline: scenario.is_observational_baseline,
+    adjustable_factors: scenarioDataset.controls.map((control) => {
+      const intervention = interventionByNodeId.get(control.node_id);
+      return {
+        name: control.label_zh,
+        status: intervention ? "主动设定" : "不主动设定，随前因自然变化",
+        current_value: formatValue(nodes.get(control.node_id), scenario.values[control.node_id]),
+      };
+    }),
+    all_factor_values: dataset.nodes.map((node) => {
+      const before = baseline.values[node.id];
+      const after = scenario.values[node.id];
+      return {
+        name: node.label_zh,
+        baseline_value: formatValue(node, before),
+        current_value: formatValue(node, after),
+        change: after > before ? "升高" : after < before ? "降低" : "不变",
       };
     }),
   };
@@ -416,6 +470,48 @@ function narrativePrompt(dataset, bible, batch, recentStories = []) {
   const baselineScenario = scenarios.datasets
     .find((item) => item.dataset_id === dataset.dataset_id)
     .scenarios.find((item) => item.is_observational_baseline);
+  if (professionalOnlyNarratives) {
+    const readerFacingRelationships = sourceDataset.edges.map((edge) => {
+      const sourceLabel = sourceDataset.nodes.find((node) => node.id === edge.source).label_zh;
+      const targetLabel = sourceDataset.nodes.find((node) => node.id === edge.target).label_zh;
+      return {
+        source: sourceLabel,
+        target: targetLabel,
+        direction: edge.sign === "positive"
+          ? `${sourceLabel}升高通常会使${targetLabel}升高，${sourceLabel}降低通常会使${targetLabel}降低`
+          : `${sourceLabel}升高通常会使${targetLabel}降低，${sourceLabel}降低通常会使${targetLabel}升高`,
+      };
+    });
+    return {
+      system: [
+        "你是面向普通读者的中文专业因果解释编辑。当前只改写 professional_explanation，不生成故事。",
+        "正文要从最上游条件讲起，覆盖 reader_facing_relationships 中每一条直接关系，顺着影响过程说明各因素怎样共同形成所有最终结果；不能只讲主动设置的因素和发生数值变化的部分。",
+        "先用自然语言说明本情景哪些因素被主动设定、哪些因素保持自然变化。遇到主动设定的下游因素，要先说明它通常受哪些前因影响，再说明本情景中它被直接设为给定值，因此当前取值不再随那些前因改变；然后继续说明它对后续结果的影响。",
+        "正文必须使用完整、可读的中文名称。可以使用领域中通行且输入名称本身包含的缩写，如 SOFA、MAP、ICU；不得把内部字母编号当作名称，不得写字母编号的括注。",
+        "完整覆盖 required_factor_names 中的因素及 reader_facing_relationships 中的关系。优先使用清楚的完整名称，也可以在不改变含义的前提下自然改写，例如把‘48h急性肾损伤风险’写成‘48小时内发生急性肾损伤的风险’。",
+        "严禁出现内部编号或结构表达，例如‘自主学习时长（S）’、‘F=0.5’、‘T->S’、‘T→S’。严禁使用公式、方程、箭头或用单个字母代指某项因素。",
+        "严禁使用‘根节点、叶子节点、中介节点、碰撞点、节点、变量、结构方程、因果图、驱动被截断、路径被截断’等建模术语。领域内自然说法可以保留，例如‘货币政策传导路径’。",
+        "改用领域自然语言，例如：‘家庭条件会影响父母受教育程度’；‘由于自主学习时长在这个情景中被直接设定，它当前不再随辅导时间改变’；‘睡眠减少又会加重焦虑，进而影响成绩’。",
+        "对每一项直接关系说明影响方向及其在当前情景中的作用。关系没有引起明显数值变化时，也要简洁说明它仍如何参与形成当前结果。",
+        "只使用输入提供的关系和数值，不补造关系、事实或建议。写成连贯的专业说明，不写结构清单、免责声明、教学提示或故事内容。",
+        "coverage_professional 仅供程序核对，必须原样列出全部 edge key；这些内部 key 不得出现在 professional_explanation 正文中。",
+        "当前一次只处理一个情景。严格输出 output_schema 所示的单层 JSON 对象，不要增加 scenarios 数组，不要输出 children_story，也不要在对象结尾追加文字。",
+      ].join("\n"),
+      user: {
+        dataset_id: dataset.dataset_id,
+        title_zh: dataset.title_zh,
+        required_factor_names: sourceDataset.nodes.map((node) => node.label_zh),
+        reader_facing_relationships: readerFacingRelationships,
+        scenario: readerFacingScenario(dataset.dataset_id, batch[0]),
+        output_schema: {
+          dataset_id: "原样返回",
+          key: batch[0].key,
+          coverage_professional: causalStructure.edges.map((edge) => edge.key),
+          professional_explanation: "450-750字中文：用自然的领域语言讲清全部直接关系、当前设置及所有最终结果；不得出现内部编号、箭头、公式或建模术语",
+        },
+      },
+    };
+  }
   if (fullGraphNarratives) {
     const storyInstructions = causalExplanationStories
       ? [
@@ -527,21 +623,99 @@ function normalizeNarrativeResponse(generated, datasetId) {
   if (!Array.isArray(normalized.scenarios)) return normalized;
   return {
     ...normalized,
-    scenarios: normalized.scenarios.map((item) => ({
-      ...item,
-      professional_explanation: item.professional_explanation
+    scenarios: normalized.scenarios.map((item) => {
+      const professionalExplanation = item.professional_explanation
         ?? item.professional_explanation_zh
         ?? item.professional
-        ?? item.explanation,
-      children_story: item.children_story
-        ?? item.children_story_zh
-        ?? item.vivid_story
-        ?? item.story,
-      coverage: item.coverage ?? {
-        professional: item.professional_covered_edges,
-        children_story: item.story_covered_edges ?? item.children_story_covered_edges,
-      },
-    })),
+        ?? item.explanation;
+      return {
+        ...item,
+        professional_explanation: professionalOnlyNarratives
+          ? naturalizeProfessionalText(datasetId, professionalExplanation)
+          : professionalExplanation,
+        children_story: item.children_story
+          ?? item.children_story_zh
+          ?? item.vivid_story
+          ?? item.story,
+        coverage: item.coverage ?? {
+          professional: item.professional_covered_edges,
+          children_story: item.story_covered_edges ?? item.children_story_covered_edges,
+        },
+      };
+    }),
+  };
+}
+
+const bannedProfessionalTerms = [
+  "根节点",
+  "叶子节点",
+  "中介节点",
+  "碰撞点",
+  "节点",
+  "变量",
+  "有向边",
+  "因果边",
+  "结构方程",
+  "因果图",
+  "路径被截断",
+  "驱动被截断",
+];
+
+function escapeRegExp(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function naturalizeProfessionalText(datasetId, text) {
+  if (typeof text !== "string") return text;
+  let result = text;
+  const replacements = [
+    ["正向推动", "促进"],
+    ["负向推动", "抑制"],
+    ["正向影响", "促进作用"],
+    ["负向影响", "抑制作用"],
+  ];
+  for (const [source, target] of replacements) result = result.replaceAll(source, target);
+  for (const nodeId of datasetById.get(datasetId).nodes.map((node) => node.id).sort((left, right) => right.length - left.length)) {
+    const parentheticalId = new RegExp(`[（(]\\s*${escapeRegExp(nodeId)}\\s*[)）]`, "g");
+    result = result.replace(parentheticalId, "");
+  }
+  return result.replace(/\s+([，。；：、])/g, "$1").trim();
+}
+
+function professionalStyleViolations(datasetId, text) {
+  if (typeof text !== "string") return ["正文缺失"];
+  const violations = bannedProfessionalTerms.filter((term) => text.includes(term));
+  if (text.includes("->") || text.includes("→")) violations.push("箭头表达");
+  if (/[A-Za-z][A-Za-z0-9_]*\s*=/.test(text)) violations.push("字母等式");
+  const internalIds = datasetById.get(datasetId).nodes.map((node) => node.id).sort((left, right) => right.length - left.length);
+  for (const nodeId of internalIds) {
+    const idAsSubjectPattern = new RegExp(
+      `(^|[，。；：、\\s])${escapeRegExp(nodeId)}(?=(?:为|是|对|受|由|升高|降低|增加|减少|影响|促进|抑制|决定|导致|使))`,
+    );
+    if (idAsSubjectPattern.test(text)) violations.push(`内部编号 ${nodeId}`);
+  }
+  return [...new Set(violations)];
+}
+
+function mergeSourceStory(datasetId, generated) {
+  if (!professionalOnlyNarratives || !Array.isArray(generated?.scenarios)) return generated;
+  return {
+    ...generated,
+    scenarios: generated.scenarios.map((item) => {
+      const source = sourceNarrativeByKey.get(item.key);
+      if (!source) throw new Error(`${datasetId}: ${item.key} is missing from ${sourceNarrativesPath}`);
+      if (typeof source.children_story !== "string" || !Array.isArray(source.coverage?.children_story)) {
+        throw new Error(`${datasetId}: ${item.key} has no reusable v3 story or story coverage`);
+      }
+      return {
+        ...item,
+        children_story: source.children_story,
+        coverage: {
+          professional: item.coverage?.professional ?? item.coverage_professional,
+          children_story: source.coverage.children_story,
+        },
+      };
+    }),
   };
 }
 
@@ -556,6 +730,10 @@ function validateNarrativeBatch(datasetId, expectedKeys, generated) {
     }
     if (fullGraphNarratives) {
       if (item.professional_explanation.length < 250) throw new Error(`${datasetId}: ${item.key} professional_explanation is too short for full graph coverage`);
+      if (professionalOnlyNarratives) {
+        const styleViolations = professionalStyleViolations(datasetId, item.professional_explanation);
+        if (styleViolations.length) throw new Error(`${datasetId}: ${item.key} professional_explanation contains forbidden notation: ${styleViolations.join(", ")}`);
+      }
       const minimumStoryLength = causalExplanationStories ? 220 : 450;
       if (item.children_story.length < minimumStoryLength) {
         throw new Error(`${datasetId}: ${item.key} children_story is too short for full graph coverage (${item.children_story.length} < ${minimumStoryLength})`);
@@ -591,7 +769,9 @@ function narrativeOutput(datasets, callCount) {
     0,
   );
   return {
-    schema_version: causalExplanationStories
+    schema_version: professionalOnlyNarratives
+      ? "static-narratives-natural-professional-v4"
+      : causalExplanationStories
       ? "static-narratives-causal-explanation-v3"
       : fullGraphNarratives
         ? "static-narratives-full-graph-v2"
@@ -636,10 +816,12 @@ async function generateNarratives() {
     for (const batch of chunks(pending, batchSize)) {
       callCount += 1;
       console.log(`Generating narratives: ${dataset.title_zh}, ${generatedByKey.size}/${dataset.scenarios.length} complete`);
-      const recentStories = [...generatedByKey.values()].slice(-3).map((item) => ({
-        key: item.key,
-        opening_excerpt: item.children_story.slice(0, 140),
-      }));
+      const recentStories = professionalOnlyNarratives
+        ? []
+        : [...generatedByKey.values()].slice(-3).map((item) => ({
+            key: item.key,
+            opening_excerpt: item.children_story.slice(0, 140),
+          }));
       const prompt = narrativePrompt(dataset, bible, batch, recentStories);
       let generated;
       let validationError;
@@ -652,19 +834,28 @@ async function generateNarratives() {
               previous_invalid_output: previousInvalidOutput,
             }
           : prompt.user;
-        generated = normalizeNarrativeResponse(await deepseekJson({
+        generated = mergeSourceStory(dataset.dataset_id, normalizeNarrativeResponse(await deepseekJson({
           ...prompt,
           user: retryUser,
-          maxTokens: fullGraphNarratives ? 6200 : 2400,
-          temperature: 0.72,
-        }), dataset.dataset_id);
+          maxTokens: professionalOnlyNarratives ? 3200 : fullGraphNarratives ? 6200 : 2400,
+          temperature: professionalOnlyNarratives ? 0.45 : 0.72,
+        }), dataset.dataset_id));
         try {
           validateNarrativeBatch(dataset.dataset_id, batch.map((item) => item.key), generated);
           validationError = null;
           break;
         } catch (error) {
           validationError = error;
-          previousInvalidOutput = generated;
+          previousInvalidOutput = professionalOnlyNarratives
+            ? {
+                dataset_id: generated?.dataset_id,
+                scenarios: generated?.scenarios?.map((item) => ({
+                  key: item.key,
+                  coverage_professional: item.coverage?.professional,
+                  professional_explanation: item.professional_explanation,
+                })),
+              }
+            : generated;
           if (attempt < maxApiAttempts) console.warn(`${error.message}\nRetrying narrative for schema/coverage (${attempt + 1}/${maxApiAttempts})...`);
         }
       }
@@ -697,6 +888,11 @@ async function generateNarratives() {
 }
 
 if (dryRun) {
+  if (professionalOnlyNarratives) {
+    for (const dataset of narrativeDatasets) {
+      for (const scenario of dataset.scenarios) narrativePrompt(dataset, null, [scenario], []);
+    }
+  }
   const plan = {
     model,
     narrative_version: narrativeVersion,
@@ -715,6 +911,8 @@ if (dryRun) {
       narrative_batches: chunks(dataset.scenarios, batchSize).length,
     })),
     outputs: { biblesPath, outputPath },
+    ...(professionalOnlyNarratives ? { reused_story_source: sourceNarrativesPath } : {}),
+    ...(professionalOnlyNarratives ? { prompt_smoke_test: `${narrativeDatasets.reduce((sum, dataset) => sum + dataset.scenarios.length, 0)} requests constructed successfully` } : {}),
   };
   console.log(JSON.stringify(plan, null, 2));
   process.exit(0);
